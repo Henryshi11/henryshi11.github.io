@@ -1,12 +1,12 @@
 <!doctype html>
-<html lang="zh-Hans">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#f7f5ee">
-  <meta name="description" content="Henry Shi 的个人主页。访问我的 GitHub 和 LinkedIn 公开资料。">
-  <title>Henry Shi · 个人主页</title>
+  <meta name="description" content="Henry Shi’s personal site and a collection of free browser experiments, creative tools, and AI prompts.">
+  <title>Henry Shi · Personal site</title>
   <style>
     :root {
       --paper: #f7f5ee;
@@ -14,7 +14,7 @@
       --muted: #4a5c58;
       --rule: #c9cfc4;
       --accent: #af452a;
-      font: 100%/1.55 "Inter", "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      font: 100%/1.55 "Inter", "Segoe UI", system-ui, sans-serif;
       color: var(--ink);
       background: var(--paper);
     }
@@ -23,7 +23,7 @@
     main {
       width: min(58rem, calc(100% - 3rem));
       margin-inline: auto;
-      padding-block: clamp(3rem, 13vh, 8.5rem) 3.5rem;
+      padding-block: clamp(1.5rem, 6vh, 4.5rem) 3.5rem;
     }
     .masthead {
       display: flex;
@@ -51,7 +51,7 @@
       isolation: isolate;
       display: grid;
       align-content: center;
-      min-height: clamp(17rem, 32vw, 23rem);
+      min-height: clamp(13rem, 23vw, 17rem);
       padding-block: 2.5rem;
     }
     .intro p { margin: 0 0 .6rem; font-size: 1.05rem; letter-spacing: .06em; }
@@ -152,20 +152,154 @@
       .account, .arrow { transition: none; }
       .account:hover .arrow, .account:focus-visible .arrow { transform: none; }
     }
+    [hidden] { display: none !important; }
+    .jump-link {
+      display: inline-flex;
+      align-items: center;
+      gap: .5rem;
+      margin-left: auto;
+      min-height: 2.75rem;
+      color: var(--ink);
+      font-size: .97rem;
+      font-weight: 600;
+      line-height: 1.2;
+      letter-spacing: 0;
+      text-decoration: none;
+    }
+    .jump-link:hover, .source-link:hover { text-decoration: underline; }
+    .jump-link:focus-visible, .filters button:focus-visible, .resource-link:focus-visible,
+    summary:focus-visible, .copy:focus-visible, .source-link:focus-visible {
+      outline: 3px solid var(--accent);
+      outline-offset: 3px;
+    }
+    #collection { margin-top: clamp(2.5rem, 6vw, 4.5rem); scroll-margin-top: 1.25rem; }
+    .shelf-heading { border-top: 1px solid var(--ink); padding-top: 1.6rem; }
+    .shelf-heading h2 {
+      margin: 0;
+      font: 500 clamp(2.25rem, 6vw, 3.75rem)/1.04 "Baskervville", Georgia, serif;
+      letter-spacing: -.05em;
+    }
+    .shelf-heading p { color: var(--muted); margin: .62rem 0 0; max-width: 42rem; }
+    .shelf-tools {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      column-gap: 1rem;
+      row-gap: .45rem;
+      margin: 1.15rem 0 .9rem;
+    }
+    .filters { display: flex; flex-wrap: wrap; gap: .25rem; }
+    .filters button, .copy {
+      background: transparent;
+      color: var(--ink);
+      border: 1px solid transparent;
+      border-radius: .3rem;
+      font: inherit;
+      font-size: .94rem;
+      font-weight: 600;
+      cursor: pointer;
+      padding: .45rem .7rem;
+      min-height: 2.75rem;
+    }
+    .filters button:hover, .copy:hover { border-color: var(--rule); }
+    .filters button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+    .resource-count { margin: 0; color: var(--muted); font-size: .9rem; }
+    .resource-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .95rem; align-items: start; }
+    .resource {
+      min-width: 0;
+      background: #fbfaf5;
+      border: 1px solid var(--rule);
+      border-radius: .45rem;
+    }
+    .resource:focus-within, .resource:hover { border-color: #788a7c; }
+    .resource-link {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) clamp(4.5rem, 7.5vw, 6.4rem);
+      grid-template-areas: "heading image" "note note" "action action";
+      gap: .7rem .85rem;
+      align-items: center;
+      padding: 1.18rem;
+      color: inherit;
+      border-radius: .42rem;
+      text-decoration: none;
+    }
+    .resource-heading { grid-area: heading; }
+    .publisher { margin: 0 0 .35rem; color: var(--muted); font-weight: 610; font-size: .88rem; }
+    .resource h3 {
+      margin: 0;
+      font: 540 clamp(1.4rem, 2.4vw, 1.85rem)/1.08 "Baskervville", Georgia, serif;
+      letter-spacing: -.035em;
+    }
+    .stamp { grid-area: image; display: block; width: 100%; height: auto; border-radius: .25rem; }
+    .resource-note { grid-area: note; align-self: start; margin: 0; line-height: 1.48; color: var(--muted); }
+    .resource-action {
+      grid-area: action;
+      display: inline-flex;
+      align-items: center;
+      gap: .4rem;
+      justify-self: start;
+      font-weight: 650;
+      color: #285c55;
+    }
+    .resource-link:hover .resource-action, .resource-link:focus-visible .resource-action {
+      text-decoration: underline;
+      text-underline-offset: .18em;
+    }
+    .resource details { border-top: 1px solid var(--rule); }
+    .resource summary {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      min-height: 2.85rem;
+      padding: .6rem 1.18rem;
+      font-size: .94rem;
+      font-weight: 600;
+    }
+    summary::-webkit-details-marker { display: none; }
+    .resource summary::after { content: "+"; color: var(--accent); font-size: 1.15rem; line-height: 1; }
+    .resource details[open] > summary::after { content: "−"; }
+    .prompt-panel { padding: .1rem 1.18rem 1rem; }
+    .prompt-heading { font-size: .9rem; font-weight: 650; margin: 0 0 .55rem; color: var(--muted); }
+    .prompt-text {
+      margin: 0;
+      padding: .85rem 1rem;
+      background: #eff1e8;
+      color: var(--ink);
+      border-left: 2px solid #849689;
+      white-space: pre-line;
+      font-size: .97rem;
+      user-select: text;
+    }
+    .prompt-tools { display: flex; gap: .25rem .9rem; align-items: center; flex-wrap: wrap; margin-top: .5rem; }
+    .copy { border-color: var(--rule); background: var(--paper); }
+    .source-link { color: var(--muted); text-decoration: underline; text-underline-offset: .18em; font-size: .92rem; }
+    .copy-status { margin: .4rem 0 0; color: var(--muted); font-size: .9rem; }
+    .copy-status:empty { margin: 0; }
+    .sr-only { position: absolute; overflow: hidden; width: 1px; height: 1px; padding: 0; clip-path: inset(50%); white-space: nowrap; }
+    @media (max-width: 43rem) {
+      .resource-grid { grid-template-columns: 1fr; }
+      .resource-link { grid-template-columns: minmax(0, 1fr) 5rem; }
+    }
   </style>
 </head>
 <body>
   <main>
     <header>
-      <div class="masthead"><span class="mark" aria-hidden="true">h</span>个人主页</div>
+      <div class="masthead">
+        <span class="mark" aria-hidden="true">h</span>
+        <span>Personal site</span>
+        <a class="jump-link" href="#collection">Fieldnotes <span aria-hidden="true">↓</span></a>
+      </div>
       <div class="intro">
-        <p>你好，我是</p>
+        <p>Hi, I’m</p>
         <h1 lang="en">Henry Shi</h1>
         <div class="scene" aria-hidden="true"><span class="sun"></span><span class="ridge far"></span><span class="ridge near"></span></div>
       </div>
     </header>
     <nav aria-labelledby="account-heading">
-      <h2 id="account-heading">公开账号</h2>
+      <h2 id="account-heading">Profiles</h2>
       <ul class="accounts">
         <li>
           <a class="account" href="https://github.com/Henryshi11" rel="me noreferrer">
@@ -177,12 +311,145 @@
         <li>
           <a class="account" href="https://www.linkedin.com/in/henry-shi-a31371356/" rel="me noreferrer">
             <svg class="symbol" aria-hidden="true" viewBox="0 0 24 24"><path d="M20.45 2H3.55C2.69 2 2 2.69 2 3.55v16.9c0 .86.69 1.55 1.55 1.55h16.9c.86 0 1.55-.69 1.55-1.55V3.55c0-.86-.69-1.55-1.55-1.55ZM8.15 19H5.2V9.55h2.95V19ZM6.67 8.26a1.71 1.71 0 1 1 0-3.42 1.71 1.71 0 0 1 0 3.42ZM19 19h-2.94v-4.6c0-1.1-.02-2.51-1.53-2.51-1.53 0-1.77 1.2-1.77 2.43V19H9.82V9.55h2.82v1.29h.04c.39-.74 1.35-1.53 2.78-1.53 2.98 0 3.54 1.97 3.54 4.52V19Z"/></svg>
-            <span class="label"><strong lang="en">LinkedIn</strong><small>职业经历</small></span>
+            <span class="label"><strong lang="en">LinkedIn</strong><small>Work &amp; education</small></span>
             <svg class="arrow" aria-hidden="true" viewBox="0 0 20 20"><path d="M4 16 16 4M5.5 4H16v10.5"/></svg>
           </a>
         </li>
       </ul>
     </nav>
+    <section id="collection" aria-labelledby="fieldnotes-heading">
+      <header class="shelf-heading">
+        <h2 id="fieldnotes-heading">Fieldnotes</h2>
+        <p>A small collection of browser experiments, game design tools, and AI prompts to try.</p>
+      </header>
+      <div class="shelf-tools">
+        <div class="filters" role="group" aria-label="Filter resources" hidden>
+          <button type="button" data-filter="all" aria-pressed="true">All</button>
+          <button type="button" data-filter="prompt" aria-pressed="false">With prompts</button>
+          <button type="button" data-filter="interactive" aria-pressed="false">Interactive demos</button>
+          <button type="button" data-filter="tool" aria-pressed="false">Creative tools</button>
+        </div>
+        <p class="resource-count" role="status" aria-live="polite">4 resources</p>
+      </div>
+      <div class="resource-grid">
+        <article class="resource" data-topics="prompt interactive">
+          <a class="resource-link" href="https://cdn.openai.com/gpt-examples/9cf9ff04-74aa-4989-845d-983cd048315a/jumping-ball-runner.html" aria-labelledby="runner-title runner-action" aria-describedby="runner-note">
+            <div class="resource-heading">
+              <p class="publisher">OpenAI</p>
+              <h3 id="runner-title">Jumping Ball Runner</h3>
+            </div>
+            <img class="stamp" alt="" width="144" height="144" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAJAAAACQCAMAAADQmBKKAAAAM1BMVEX/8tb/5Kzv38jazLXIxKnMuqCgrZTimm3YckeDloOueVV/ZlOpVTimSC+CSDI8VlAmPz3g1UAIAAACiElEQVR42u3YYXPCIAwG4KjIahnb/v+vXXXOQgUKScB4l/fDrvV29mmAUAtHYQEFKUhBClKQghSkIAX1zCmKVkg26JyIgnQOvQVo+osQ0BRGAGia2EVA9hyWMIqA6DkcQtDUB3Sq2xJXz4Fx1IBcH+Z5BMwesgj2N6BzCTRJAiU904uG7L7iJ3YR8LRE0SCvIIkgRwVltwEcyDlxFfJ5z2jQfPtLAJW7bitoXiIA9Jh/d05B5L0bN2Tz6jl6n/F450aBrpz1YknR4jl2rtBjsG/lcevt+4TIe+IaawGdb6MV3P6ziMGDXvYpEYenHTQfoxo9TLdjP/xn0DxHp36T4b/L5qdPmDkcLxtyHCfsdYxD9sdqUPPXd66Qo20IEiqkr/TeH2SEgcw1ckDmP0JAJowAkNnmhSCX8hRMvUFLhze5IEHEFp33pE3QexMzexlcIVORgXPI1GYQyLRkAMi0pjPIINIRhOEYay10epzAaSigcr9FavCgnfaG5iBBO0v3fvIRpUqDA9XedhXIbgP9Vk/kcVWaZlDTxIg8z08hNh3o2Fo+g7gqTRJkMtt8e2MJQXWaFOixYOIHIUzf/QpSyXkChd/n1vbS0FHKFbK7AfoGlB2MLcjWBBg92+8OQbY20I1DBnFzqCB2jrXhKmsG8XNIFerBiUHxTrsH6sIhgIrdDavBg3JXoXKwoNJFSJzNKqud4bB3DTRns8raQYV/QnE2oNqmBLWXaOYQKlR7gTYOFpT4zFmecIGWR0UeEG6VvUGF2IJbZaNA4ir0viCNhppvYZEHugQnEo6DCl0uEo5BFmetkJiRA1Hl+QdJmtjahxSkoO6gH2GRB9I5pCAFKUhBClKQgsbmFxR116DlT5/iAAAAAElFTkSuQmCC">
+            <p class="resource-note" id="runner-note">Tap or press Space to clear the next obstacle. Try a few runs and feel how the rising speed changes when you need to jump.</p>
+            <span class="resource-action" id="runner-action">Play the game <span aria-hidden="true">↗</span></span>
+          </a>
+          <details>
+            <summary>Try a prompt<span class="sr-only"> for Jumping Ball Runner</span></summary>
+            <div class="prompt-panel">
+              <p class="prompt-heading">Original practice prompt · A chalkboard runner</p>
+              <p class="prompt-text" id="prompt-runner">Build a one-button game in a single HTML file. A chalk dot rolls across a blackboard. Let the player press Space or tap to jump over erasers. Score one point for each eraser cleared.
+
+Give the first three jumps equal spacing. After that, vary the gaps while keeping every jump reachable. On a collision, freeze for half a second and show a Retry button. Replay the same opening sequence so the player can learn its rhythm.
+
+Draw everything with Canvas. Put the score in the corner and make Retry work with a keyboard or a tap. Return the complete HTML file.</p>
+              <div class="prompt-tools">
+                <button class="copy" type="button" data-copy="prompt-runner" hidden>Copy prompt</button>
+                <a class="source-link" href="https://openai.com/index/introducing-gpt-5/#:~:text=Jumping%20Ball%20Runner">OpenAI’s original example <span aria-hidden="true">↗</span></a>
+              </div>
+              <p class="copy-status" role="status" aria-live="polite"></p>
+            </div>
+          </details>
+        </article>
+        <article class="resource" data-topics="prompt interactive">
+          <a class="resource-link" href="https://webglsamples.org/aquarium/aquarium.html" aria-labelledby="aquarium-title aquarium-action" aria-describedby="aquarium-note">
+            <div class="resource-heading">
+              <p class="publisher">WebGL Samples</p>
+              <h3 id="aquarium-title">WebGL Aquarium</h3>
+            </div>
+            <img class="stamp" alt="" width="144" height="144" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAJAAAACQCAMAAADQmBKKAAAANlBMVEXw1Z7utnnI1q+ry6yRvKzOq3mYt5aJtZ2ItKHUmGd6mnk/fXc2dXI4c3AoY2MiVFEhS0sZP0Ajkg+8AAAES0lEQVR42u3Z2ZbiIBAGYHRii6hFeP+XnZiNnRSEIukZ66K3RPnOXwXxnGavOgVPv8Cvt1EQLPaPgqp5/icQpEFACgKoFVAtUHbHoDkIjgRBNgiIQfUC+jdBNTtGBXKX4diA6oA2A+IfkeXpCEGIgJyEPp7uWJA3QYQJVR1pIhAkQXAO0LsVCHwQHAwq7FjXdacCdZGtxmg6xrcDagrinqghKNiwaEL6L6gZ4uR7DLaK2R5ODII8UNjD8ztWDRT28Nodi4wPdqh5TscwAXV0T/siUAepzx+s5XMM2oPgV4G2DundIKzHBe3dZbUDovs8dDYQeCA4HFQ/oKogOBaU2TFoASLoWE1QlYDKQZkdu441/+mnCSjluS41eShAWQFdr6boZw/oYf960YUHDYy+X0U/P/tAj4jnI0IGNIM+kEW0B2SQLk7hQUs4NRLSosslIYLUTMMiusLuGVpFl2AhQQDmtt8PesQ8WrThsWs/6BGy9L0mQRYIdoNWhPkbFgQEoIcJCjQt5eEUoHWoPc/mSPNMEXqXvWZQzkhTJWScQ/mezBHKOqlfsWOx3khnPsteeac0CSjyyQOeT5qASj4PnR6U6hg0AKEDOgpUdaSpQdAARNyx/aDKngqgm36vuZqCwAEB3G6OZxaVecpATxt0czwj6X0k6ENidpUGlAuyOsbHkR5BN0vT98OXhqDVw1fQBFl+ageyR3r0mAlZSUF70FODpqE2PKUjVAe0bPubscmgBSjk0eeQeTC+jwQFnxtAAeIboMTbkoC8f7YGA9rj4TsTqg3iIRErHyHYXXzfUEN1ENQAEXtQoPv07c9YpwDdtUeLDgXdtWchwbGg+6rp+0l0MGi0jN9nEJwhoTWnE4CGOwdQgxHCgGD0fER6k0ETkBAieBze9e3Eex4Bcm4n92yBwp6GIJHitAjIA4mUB4g8IrbLLNF4WTbxCC2S9rY3ROPVoVwQUHgW0bCeBglTtFy2RUTjM4um5ZizxSaR5lgiqnEeF5U2aG3WnJ80i9hjiZg3PEZ8jojKMyygRczbXjo9PyMizixyQPPmmq54KlqO1Csy+6GxdFMUi2QRJwLS0+WDZOYKWZpIy8xpLxLlzN4qWZfzhtrafSIgkpmaxAudTkW2vYXIFElEhSdnWCV6MFqEHJEsLN8zg4a3FB4ALZIVPRMIwuuHQLKaZl3AXobNnJhoY0BzBTLw/vYq7AXRHgUTMkkFiYQTMkFOR92xTmyX0hZttMwDiU3PR1Q6MwGhM9TRiyIBKh/i7W3vDNB6kcATyDxwMLoDbTxdhcpbT+HOnbSIebeuQamxsBiFuR0hYt6NE0gZhcUgbo+IdDcVc5s7/qgUdhEVqmyR1BEwZ/x1rxCLqHjhRc56TkIRTWARtVmIrRZ4lQ0SuEUUtqKnUfwlzGSr+pXTZgekqArfZAMk1VmKnYszgtSpiin1BX1BX9AX9AV9Qb8a9BfUlDPIuuMrXwAAAABJRU5ErkJggg==">
+            <p class="resource-note" id="aquarium-note">Start with a small school, then turn up the fish count. Switch viewpoints to see the same tank from a different angle.</p>
+            <span class="resource-action" id="aquarium-action">Explore the tank <span aria-hidden="true">↗</span></span>
+          </a>
+          <details>
+            <summary>Try a prompt<span class="sr-only"> for WebGL Aquarium</span></summary>
+            <div class="prompt-panel">
+              <p class="prompt-heading">Original practice prompt · A pocket aquarium</p>
+              <p class="prompt-text" id="prompt-aquarium">Create a small 2D fish tank in one self-contained HTML file. Draw two schools of fish with simple shapes. Give each school its own color and cruising speed.
+
+Add controls for 8, 32 and 96 fish, plus a Pause button. When the count goes up, have new fish swim in from the edges while the others keep their positions. Pause should freeze the entire tank until I press it again.
+
+Use Canvas and plain JavaScript. On a phone, place the controls below the tank and keep them reachable by keyboard. Return the complete HTML file.</p>
+              <div class="prompt-tools">
+                <button class="copy" type="button" data-copy="prompt-aquarium" hidden>Copy prompt</button>
+              </div>
+              <p class="copy-status" role="status" aria-live="polite"></p>
+            </div>
+          </details>
+        </article>
+        <article class="resource" data-topics="interactive">
+          <a class="resource-link" href="https://www.redblobgames.com/pathfinding/a-star/introduction.html" aria-labelledby="path-title path-action" aria-describedby="path-note">
+            <div class="resource-heading">
+              <p class="publisher">Red Blob Games</p>
+              <h3 id="path-title">How A* finds a path</h3>
+            </div>
+            <img class="stamp" alt="" width="144" height="144" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAJAAAACQBAMAAAAVaP+LAAAALVBMVEX/9Nn/89Pl58/o5Mrc4snT3MSzx6iBl4tkiHe8XDm4Xjxjg3FSbmYjVlAxS0Q2JLhYAAADXUlEQVR42u1ZMW7bMBR9ZuwlyNDcgPABCgPqATwUaLN1qcfCmXKEdu6UAL1AM2V2Fh3AbnWAunDmuoTbA9QJGjgJ3DgdLMmi9EWJImV5kACD8jf1/fnE9//XU6MNOwdD7ah2ZH40AWCvAwD4/gwAcMMBAL8k498uAMCThi/rmUI3Ik4NVWLEGDFUGpESIr2IVK6Ybuws5TqdiDqMGPQdqSHScCTESiSGiknrUkNwNNo22d9ck/lrwSQwlJbGDW+fdbAZM0wCTXLyGACm6/MfodVPpAqw4xA97l9Qc3uqHc5AoD0h/eBiokCb2UoCIUadSXT6op90MZBnykPgssAumsnX+REJPJfJ7CR29qM0U5xeHkrXNQ32oOOMCfa7ukkAAJxO+K0JAP+GkX0IzNcfIRtXwNMc/kx/OKPZH3L6HHiJUSwJLIE9R84Mn5zNX4UY8Vl0AIDPAHB3nLrEpWsn1cp+woiIir50gdarPJhn3P7WWwB3UhCXwdk0i/3KHb4/yFVFeH6PBSp69OhnV5F0MkchW/SiX//QEeVZ0Js8EQWcDsks6Lu42dm9UvtsuqKfaDkia78YLD6adP5XQT8vgHas6JOdwE2k849TJML+9wDw8K6Sh5pEYd+w/6igowT7Hwq2fhzWekhuxZEB9Izu7k0dcVsRJfr5qp6y6SJzViH7WZLah0q+y8Z5BkVOAeD+2E8CfifgG7cIdqxLaL0OkoDfCfhGffbfB0nA7wR8Yy1E1Y7y7qMPUhI4kYxls78Ro7YAnBjff6/7ghGVBMYFVb/duWtqaaBC1c9GRNyKI2aPIsq+gFmCSF/126k04m698w/5TnT+stw3Snb+8tJWQuSW+5QYzYCZDbBX+Oatcsp9ypw9O8ABfl5PzZO/B3hH50UgMtH8cznqZykEGUvreug+9dLKXUwaUETEb3GLawDo6kIk/zXDCzDnhp6bkAYynkW4ldrP2vk1f2xB8/cU9f1KescnG0nNn+tmbV6y5q+q7+RvodF6RKYQpap+2q7yq35MbWT067z8tb/DdFU/NUSBo7T3eFm1f2O0X/vd7Pruqox22d/IVvZUncDQDCNeMvv1L2Qls98UIpOIOMV+mL0rMIooli6YJYgKO0qkix0QENyS2F+rNbWjnXL0Hw9GIHeMaHH8AAAAAElFTkSuQmCC">
+            <p class="resource-note" id="path-note">Drag the start and goal across the map, then step through a search. Watch which tiles get checked before the final route appears.</p>
+            <span class="resource-action" id="path-action">Explore the maps <span aria-hidden="true">↗</span></span>
+          </a>
+        </article>
+        <article class="resource" data-topics="tool">
+          <a class="resource-link" href="https://sfxr.me/" aria-labelledby="sound-title sound-action" aria-describedby="sound-note">
+            <div class="resource-heading">
+              <p class="publisher">jsfxr</p>
+              <h3 id="sound-title">Make a coin pickup sound</h3>
+            </div>
+            <img class="stamp" alt="" width="144" height="144" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAJAAAACQBAMAAAAVaP+LAAAAJFBMVEXz48bq17HoyqzhwqXvtHHhpHavjnS5aUVpXE5JZFs4X1koTEvEB+F4AAADSklEQVR42u2ZsW7TQBjHf3eYJFUHJ68QXgCJF2Bh7whbF+iazUwoY7p5Q3RA3Vj7AAxlB/EGVddOuaU0qSrMcGfHZ7uufb6EgnxSLp8T+6+/P//85btYTAFgrDpOQguJpOsktaGw86QddTeUSE+GdI48GEJ6MoSY+jGE9GQIMfVjCOnJEGLqx5CQngyF4lniieywJ7sn+38kOwgVECrgLa3HSXpsqJ7sAWIFvGuvw4sf+lixIsCIDnjfXmhxeJqekQSEAg5XDo7mA6GMQEY2cweh1ea6SWNo4GII5gfpGaVkj3EfIYAkO0unEZhjRWA4+AWwf9ZG4/oA4OW5FpA5Q+10zO6BEcjV7C4ZCpG5DJ21lNgH4LkWkLYh1WayXMkulywdNtkd0xRYhpYs9VuTSYxzhghMQdEfTtQYaDplhpQHstNjrZrdCaQUzEHx6/UxcNTYkAeyEy0Q3Juh4YzjFmmSeALJG9lBykEJyGQJyfIEGBzWA0moimTngLwSk3RfMakHsoLszZUfvjEbEVdfHsrQ9skeRjN/ZNuYx0C0G7JlswwNj6IH0pR1I03GJ3PrVF23wDK0TFm8TQyQLPVmYr7SoBaALJM9SVlcCwyQE70pxkwggvXHSRFIQrXpRrreagWyTd0Y1qJwnDG/FbKtboSofEeWQSjuogWakZ0/779Xs630DiEqtQ41ZGcV0gISSJK6ClkmO6uQeSBV9MBPdm03sj5tWZG2RHauRqrmnfc2ya4sQI0MWX12F0Mqt4Isj0aJ0mQrm2y3HrKCbLce0l5BPpo+2xvZ+RXkgQG86XTtcwVZ2Y3oJWHLFWRlN3L9yp3sXXcj/2Kf/bjJ7rRgCwpk78XpIq0qyjcz67i2z45ZxfdH+dZpWNtn75lXdQTMuNDBlFlcQ3YMC+L7Iq2gx+7IXs3rohZkj2qj3ZM9q5105imGVWTfmFd1BKwpR9b/2U9fz5uRbY/Rh8u7b0lVN3KTHVIV7aIb6Wt2c7JvR04S88si2cLpj/FRmezw1MXS/HdVzV44KF1W1OzPDjoX5ZqdfuqB7DvHa/+zSLZwFFJFssNzJ507IxBsztLN0HmxZofw1UHne/8Msn+63j9d78nuye7J7smumf4AmFIbZqpGLAkAAAAASUVORK5CYII=">
+            <p class="resource-note" id="sound-note">Choose Pickup/coin, then click Mutate to hear variations on the same chime. When one feels right, download it as a WAV.</p>
+            <span class="resource-action" id="sound-action">Make a sound <span aria-hidden="true">↗</span></span>
+          </a>
+        </article>
+      </div>
+    </section>
   </main>
+  <script>
+    const filters = document.querySelector(".filters");
+    const filterButtons = filters.querySelectorAll("button");
+    const resources = document.querySelectorAll(".resource");
+    const count = document.querySelector(".resource-count");
+    filters.hidden = false;
+
+    for (const button of filterButtons) {
+      button.addEventListener("click", () => {
+        const category = button.dataset.filter;
+        let visible = 0;
+        for (const resource of resources) {
+          resource.hidden = category !== "all" && !resource.dataset.topics.split(" ").includes(category);
+          if (!resource.hidden) visible++;
+        }
+        for (const choice of filterButtons) {
+          choice.setAttribute("aria-pressed", String(choice === button));
+        }
+        count.textContent = visible === 1 ? "1 resource" : visible + " resources";
+      });
+    }
+
+    for (const button of document.querySelectorAll("[data-copy]")) {
+      button.hidden = false;
+      button.addEventListener("click", async () => {
+        const prompt = document.getElementById(button.dataset.copy);
+        const status = button.closest(".prompt-panel").querySelector(".copy-status");
+        try {
+          await navigator.clipboard.writeText(prompt.textContent.trim());
+          status.textContent = "Prompt copied.";
+        } catch {
+          const range = document.createRange();
+          range.selectNodeContents(prompt);
+          const selection = window.getSelection();
+          selection.removeAllRanges();
+          selection.addRange(range);
+          status.textContent = "Prompt selected. Use your device’s Copy command.";
+        }
+      });
+    }
+  </script>
 </body>
 </html>
