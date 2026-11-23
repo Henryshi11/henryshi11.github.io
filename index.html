@@ -458,7 +458,7 @@
       <article class="project-card">
         <div class="project-media">
           <a class="project-visual-link" href="./aurelride/" aria-label="Launch AurelRide in your browser">
-            <img class="project-preview" src="./aurelride/preview.webp" alt="AurelRide — stylized 3D cycling across sunlit emerald meadows beneath distant white alpine monuments" width="1200" height="675" loading="eager">
+            <video class="project-preview" src="./aurelride/preview.mp4" poster="./aurelride/preview.webp" autoplay muted loop playsinline preload="metadata" width="960" height="540" aria-label="AurelRide gameplay preview — riding across cherry orchards, lavender valleys, canola fields, and sunlit emerald meadows"></video>
             <span class="project-badge">Live 3D WebGL · Instant Play</span>
           </a>
         </div>
@@ -610,6 +610,16 @@ Use Canvas and plain JavaScript. On a phone, place the controls below the tank a
           status.textContent = "Prompt selected. Use your device’s Copy command.";
         }
       });
+    }
+    const previewVideo = document.querySelector("video.project-preview");
+    if (previewVideo) {
+      if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        previewVideo.removeAttribute("autoplay");
+        previewVideo.pause();
+      } else {
+        previewVideo.muted = true;
+        previewVideo.play().catch(() => {});
+      }
     }
   </script>
 </body>
