@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#2847ba">
+  <title>AurelRide — Open-World Stylized 3D Cycling</title>
+  <meta name="description" content="AurelRide is a stylized open-world 3D WebGL cycling experience built with Three.js and custom GLSL shaders. Play instantly in your browser.">
+  <meta property="og:title" content="AurelRide — Open-World Stylized 3D Cycling">
+  <meta property="og:description" content="Ride across windswept meadows, lavender valleys, eastern snowfields, and a white-stone fortress wall beneath a 360° living skyline. Instant browser play.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://henryshi11.github.io/aurelride/">
+  <meta property="og:image" content="https://henryshi11.github.io/aurelride/preview.webp">
+  <link rel="preload" href="vendor/three.min.js" as="script">
+  <link rel="preload" href="aurelride.min.js" as="script">
+  <link rel="preload" href="art/city-matte.webp" as="image">
+  <link rel="stylesheet" href="style.min.css">
+</head>
+<body data-mode="intro">
+  <main id="ride" aria-label="白城草海骑行">
+    <canvas id="world" tabindex="0" aria-label="骑行画面，按空格开始或暂停，鼠标环视"></canvas>
+    <div class="veil" aria-hidden="true"></div>
+    <div id="bar">
+      <div class="location"><span class="wordmark" id="place">白城骑行</span><span id="conditions"></span></div>
+      <div class="toolbar">
+        <button type="button" id="map-open" title="骑行地图 G" aria-haspopup="dialog">地图</button>
+        <button type="button" id="atelier-open" title="骑手与单车 B" aria-haspopup="dialog">装束</button>
+        <button type="button" id="guide" title="自动巡游 C" aria-label="自动巡游" aria-pressed="false">巡游</button>
+        <button type="button" id="pace" title="自由选方向，舒缓踩踏 F" aria-label="自由漫骑" aria-pressed="true">漫骑</button>
+        <button type="button" id="quality" title="切换画质（高清 / 流畅）" aria-label="画质模式" aria-pressed="false">画质</button>
+        <button type="button" id="mute" title="环境音 M" aria-label="环境音" aria-pressed="true">声音</button>
+        <button type="button" id="help" title="操作说明 H" aria-label="操作说明" aria-expanded="false">?</button>
+        <button type="button" id="pause" title="暂停 空格" aria-label="暂停">Ⅱ</button>
+      </div>
+    </div>
+    <div id="prompt">
+      <p id="where">白城草原 · 向阳草甸</p>
+      <button id="start" type="button" disabled>正在展开草海…</button>
+      <button id="map-intro" type="button" disabled aria-haspopup="dialog">选择出发地</button>
+      <button id="atelier-intro" type="button" disabled aria-haspopup="dialog">骑手与单车</button>
+      <p id="hint">鼠标自由 360° 环视　·　Tab 锁定鼠标控镜　·　1-4 切换电影机位　·　Shift 冲刺</p>
+    </div>
+    <section id="controls" aria-label="骑行操作" hidden>
+      <strong>骑行操作</strong>
+      <p><kbd>鼠标</kbd> 左键拖动 360° 自由环视，中键 / <kbd>Tab</kbd> 锁定鼠标控镜</p>
+      <p><kbd>滚轮</kbd> 拉近特写或拉远史诗视角</p>
+      <p><kbd>1 / 2 / 3 / 4</kbd> 史诗远景 / 侧后披风 / 贴草低机位 / 侧前电影视角</p>
+      <p><kbd>L</kbd> 锁定或解除当前自定义电影机位（自动回正开关）</p>
+      <p><kbd>Shift</kbd> 按住冲刺加速</p>
+      <p><kbd>Q</kbd> 按住回望身后的车辙，松开回到跟拍</p>
+      <p class="wardrobe-row"><kbd>V</kbd> <button id="wardrobe" type="button" title="切换骑手衣装">衣装 · <span id="outfit-name">朱砂</span> ↻</button></p>
+      <p><kbd>B</kbd> 选择角色、单车和衣装</p>
+      <p><kbd>W / S</kbd> 踩踏加速 / 刹车</p>
+      <p><kbd>A / D</kbd> 自由转向</p>
+      <p><kbd>C</kbd> 跟随路线巡游</p>
+      <p><kbd>F</kbd> 自由漫骑，自己转向，轻踩刹车退出</p>
+      <p><kbd>N</kbd> 在草甸岔口切换溪桥小径与全境环线</p>
+      <p><kbd>G</kbd> 查看地图，选择出发地</p>
+      <p><kbd>空格</kbd> 暂停或继续</p>
+      <p><kbd>R</kbd> 回到起点</p>
+      <button id="close-help" type="button">收起</button>
+    </section>
+    <div id="touch-controls" aria-label="触屏方向和车速">
+      <div><button data-key="KeyA" aria-label="左转">‹</button><button data-key="KeyD" aria-label="右转">›</button></div>
+      <div><button data-key="KeyQ" aria-label="按住回望车辙">回望</button><button id="touch-camera" aria-label="切换镜位">镜位</button><button data-key="KeyS" aria-label="刹车">慢</button><button data-key="KeyW" aria-label="加速">快</button></div>
+    </div>
+    <button id="fork" type="button" hidden><span id="fork-label"></span><kbd>N</kbd></button>
+    <div id="notice" role="status" aria-live="polite"></div>
+    <dialog id="world-map" aria-labelledby="map-title">
+      <header class="map-header"><h2 id="map-title">骑行地图</h2><button type="button" id="map-close" aria-label="关闭地图">×</button></header>
+      <div id="map-field">
+        <canvas id="map-paper" aria-hidden="true"></canvas>
+        <div id="map-pins"></div>
+        <i id="map-position" aria-label="骑手当前位置"></i>
+        <span class="map-north" aria-hidden="true">↑ 北</span>
+      </div>
+      <div class="map-bottom"><div><strong id="map-place"></strong><p id="map-detail"></p></div>
+        <div class="map-actions"><button type="button" id="map-tour">全境巡游</button><button type="button" id="map-roam">自由漫骑</button><button type="button" id="map-depart">沿环线骑行</button></div>
+      </div>
+    </dialog>
+    <dialog id="ride-atelier" aria-labelledby="atelier-title">
+      <div class="atelier-layout">
+        <div id="atelier-view" aria-label="旋转查看骑手与单车">
+          <div class="preview-tools">
+            <button type="button" id="atelier-left" aria-label="向左旋转">‹</button>
+            <button type="button" id="atelier-motion" aria-pressed="true">踩踏预览</button>
+            <button type="button" id="atelier-right" aria-label="向右旋转">›</button>
+          </div>
+        </div>
+        <section class="atelier-sheet">
+          <header><h2 id="atelier-title">骑手与单车</h2><button type="button" id="atelier-close" aria-label="取消并关闭">×</button></header>
+          <fieldset><legend>骑手</legend><div id="atelier-characters" class="atelier-options"></div><p class="equipment-note" id="atelier-person-detail"></p></fieldset>
+          <fieldset><legend>单车</legend><div id="atelier-bikes" class="atelier-options"></div><p class="equipment-note" id="atelier-bike-detail"></p></fieldset>
+          <fieldset><legend>衣装</legend><div id="atelier-looks" class="atelier-options"></div></fieldset>
+          <button type="button" id="atelier-equip">换上这套</button>
+        </section>
+      </div>
+    </dialog>
+    <div id="error" role="alert" hidden></div>
+  </main>
+  <script src="vendor/three.min.js"></script>
+  <script src="aurelride.min.js"></script>
+</body>
+</html>

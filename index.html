@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#f7f5ee">
-  <meta name="description" content="Henry Shi’s personal site and a collection of free browser experiments, creative tools, and AI prompts.">
+  <meta name="description" content="Henry Shi’s personal site — featuring AurelRide, an open-world WebGL cycling game, alongside browser experiments, creative tools, and AI prompts.">
   <title>Henry Shi · Personal site</title>
   <style>
     :root {
@@ -168,9 +168,139 @@
     }
     .jump-link:hover, .source-link:hover { text-decoration: underline; }
     .jump-link:focus-visible, .filters button:focus-visible, .resource-link:focus-visible,
-    summary:focus-visible, .copy:focus-visible, .source-link:focus-visible {
+    summary:focus-visible, .copy:focus-visible, .source-link:focus-visible,
+    .project-visual-link:focus-visible, .play-btn:focus-visible, .repo-btn:focus-visible {
       outline: 3px solid var(--accent);
       outline-offset: 3px;
+    }
+    .masthead-links {
+      display: inline-flex;
+      align-items: center;
+      gap: 1.15rem;
+      margin-left: auto;
+    }
+    .masthead-links .jump-link { margin-left: 0; }
+    #projects { margin-top: clamp(2.5rem, 6vw, 4rem); scroll-margin-top: 1.25rem; }
+    .project-card {
+      margin-top: 1.35rem;
+      display: grid;
+      grid-template-columns: minmax(0, 1.12fr) minmax(0, 1fr);
+      gap: 1.4rem;
+      align-items: center;
+      padding: 1.25rem;
+      background: #fbfaf5;
+      border: 1px solid var(--rule);
+      border-radius: .45rem;
+      transition: border-color .16s;
+    }
+    .project-card:hover, .project-card:focus-within { border-color: #788a7c; }
+    .project-visual-link {
+      position: relative;
+      display: block;
+      overflow: hidden;
+      border-radius: .35rem;
+      border: 1px solid var(--rule);
+      background: #dfe7f2;
+      aspect-ratio: 16 / 9;
+      text-decoration: none;
+    }
+    .project-preview {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transition: transform .32s ease;
+    }
+    .project-visual-link:hover .project-preview,
+    .project-visual-link:focus-visible .project-preview { transform: scale(1.025); }
+    .project-badge {
+      position: absolute;
+      left: .7rem;
+      bottom: .7rem;
+      padding: .28rem .62rem;
+      border-radius: .25rem;
+      background: rgba(24, 47, 49, .84);
+      color: var(--paper);
+      font-size: .78rem;
+      font-weight: 600;
+      letter-spacing: .03em;
+      backdrop-filter: blur(4px);
+    }
+    .project-body { display: grid; gap: .62rem; min-width: 0; }
+    .project-body h3 {
+      margin: 0;
+      font: 540 clamp(1.85rem, 3.2vw, 2.45rem)/1.05 "Baskervville", Georgia, serif;
+      letter-spacing: -.04em;
+    }
+    .project-desc { margin: 0; color: var(--muted); line-height: 1.54; font-size: .97rem; }
+    .project-specs {
+      list-style: none;
+      padding: 0;
+      margin: .15rem 0 .25rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: .4rem;
+    }
+    .project-specs li {
+      padding: .24rem .58rem;
+      border: 1px solid var(--rule);
+      border-radius: .25rem;
+      background: #f2f1e8;
+      color: var(--ink);
+      font-size: .82rem;
+      font-weight: 560;
+    }
+    .project-actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: .65rem;
+      margin-top: .25rem;
+    }
+    .play-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: .48rem;
+      min-height: 2.8rem;
+      padding: .62rem 1.25rem;
+      border-radius: .35rem;
+      border: 1px solid var(--ink);
+      background: var(--ink);
+      color: var(--paper);
+      font-weight: 640;
+      font-size: .97rem;
+      text-decoration: none;
+      transition: background .16s, border-color .16s, transform .16s;
+    }
+    .play-btn:hover, .play-btn:focus-visible {
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+    .play-btn:hover span, .play-btn:focus-visible span { transform: translateX(2px); }
+    .play-btn span { display: inline-block; transition: transform .16s; }
+    .repo-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: .35rem;
+      min-height: 2.8rem;
+      padding: .58rem .95rem;
+      border-radius: .35rem;
+      border: 1px solid var(--rule);
+      background: var(--paper);
+      color: var(--ink);
+      font-weight: 600;
+      font-size: .92rem;
+      text-decoration: none;
+      transition: border-color .16s, background .16s;
+    }
+    .repo-btn:hover, .repo-btn:focus-visible { background: #f0f2e9; border-color: var(--ink); }
+    @media (max-width: 48rem) {
+      .project-card { grid-template-columns: 1fr; gap: 1.1rem; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .project-preview, .play-btn, .play-btn span { transition: none; }
+      .project-visual-link:hover .project-preview,
+      .play-btn:hover span { transform: none; }
     }
     #collection { margin-top: clamp(2.5rem, 6vw, 4.5rem); scroll-margin-top: 1.25rem; }
     .shelf-heading { border-top: 1px solid var(--ink); padding-top: 1.6rem; }
@@ -290,7 +420,10 @@
       <div class="masthead">
         <span class="mark" aria-hidden="true">h</span>
         <span>Personal site</span>
-        <a class="jump-link" href="#collection">Fieldnotes <span aria-hidden="true">↓</span></a>
+        <span class="masthead-links">
+          <a class="jump-link" href="#projects">Projects <span aria-hidden="true">↓</span></a>
+          <a class="jump-link" href="#collection">Fieldnotes <span aria-hidden="true">↓</span></a>
+        </span>
       </div>
       <div class="intro">
         <p>Hi, I’m</p>
@@ -317,6 +450,34 @@
         </li>
       </ul>
     </nav>
+    <section id="projects" aria-labelledby="projects-heading">
+      <header class="shelf-heading">
+        <h2 id="projects-heading">Projects</h2>
+        <p>Original interactive worlds and WebGL experiences you can launch directly in your browser — no download required.</p>
+      </header>
+      <article class="project-card">
+        <div class="project-media">
+          <a class="project-visual-link" href="./aurelride/" aria-label="Launch AurelRide in your browser">
+            <img class="project-preview" src="./aurelride/preview.webp" alt="AurelRide — stylized 3D cycling across sunlit emerald meadows beneath distant white alpine monuments" width="1200" height="675" loading="eager">
+            <span class="project-badge">Live 3D WebGL · Instant Play</span>
+          </a>
+        </div>
+        <div class="project-body">
+          <p class="publisher">Original Browser Game · Three.js · MIT License</p>
+          <h3>AurelRide</h3>
+          <p class="project-desc">An open-world stylized 3D cycling adventure crafted with Three.js, custom GLSL shaders, and procedural Web Audio. Ride freely across windswept emerald meadows, lavender valleys, eastern snowfields, and a rideable white-stone fortress wall beneath a 360° living alpine skyline.</p>
+          <ul class="project-specs" aria-label="Highlights">
+            <li>360° Free Orbit &amp; 4 Cinema Cams</li>
+            <li>Biome Tracks &amp; Procedural ASMR Audio</li>
+            <li>Adaptive Low-End PC Optimization</li>
+          </ul>
+          <div class="project-actions">
+            <a class="play-btn" href="./aurelride/">Play Now <span aria-hidden="true">→</span></a>
+            <a class="repo-btn" href="https://github.com/Henryshi11/henryshi11.github.io/tree/main/aurelride" rel="noreferrer">View Source (MIT) <span aria-hidden="true">↗</span></a>
+          </div>
+        </div>
+      </article>
+    </section>
     <section id="collection" aria-labelledby="fieldnotes-heading">
       <header class="shelf-heading">
         <h2 id="fieldnotes-heading">Fieldnotes</h2>
