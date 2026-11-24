@@ -242,18 +242,18 @@
           lp2=.965*lp2+.035*lp1;
           a[i]=.48*lp2+.22*lp1;
         }
-        // Soft, heavy packed-snow compression thuds & velvety low-mid crunches (260..820Hz)
-        for(let k=0;k<460;k++){
+        // Pure stochastic packed-snow granular compression (ZERO tonal sine waves — never sounds like a horn/moo!)
+        for(let k=0;k<420;k++){
           const start=Math.floor(Math.random()*a.length);
-          const len=Math.floor(rate*(.018+.042*Math.random()));
-          const amp=(.18+.38*Math.random()**1.8);
-          const freq=220+520*Math.random();
-          let body=0;
+          const len=Math.floor(rate*(.014+.032*Math.random()));
+          const amp=(.16+.32*Math.random()**1.8);
+          let body=0,velvet=0;
           for(let j=0;j<len;j++){
-            const t=j/rate,env=Math.sin(Math.PI*j/len)**1.5;
-            body=.85*body+.15*(Math.random()*2-1);
-            const pack=Math.sin(2*Math.PI*freq*t)*.24+body*.95;
-            a[(start+j)%a.length]+=amp*env*pack;
+            const env=Math.sin(Math.PI*j/len)**1.6;
+            const n=Math.random()*2-1;
+            body=.82*body+.18*n;
+            velvet=.93*velvet+.07*body;
+            a[(start+j)%a.length]+=amp*env*(.75*body+.65*velvet);
           }
         }
       }
@@ -261,17 +261,16 @@
     }
 
     function snowCreakPulse() {
-      // Thick, cozy muffled snow-pack press ("pu-chi / ge-da" deep soft snow under tire weight)
-      const rate=Math.min(context.sampleRate,24000),dur=.18;
+      // Soft, natural aperiodic powder-snow compression puff (100% noise-based, zero tonal pitch glide!)
+      const rate=Math.min(context.sampleRate,24000),dur=.13;
       const b=context.createBuffer(1,Math.round(rate*dur),rate),out=b.getChannelData(0);
       let low=0,mid=0;
       for(let i=0;i<out.length;i++){
-        const u=i/out.length,t=i/rate,n=Math.random()*2-1;
-        low=.93*low+.07*n;
-        mid=.84*mid+.16*n;
-        const env=Math.sin(Math.PI*u)**1.4;
-        const thump=Math.sin(2*Math.PI*(155+95*u)*t)*.22;
-        out[i]=env*(1.15*low+.48*mid+thump);
+        const u=i/out.length,n=Math.random()*2-1;
+        low=.90*low+.10*n;
+        mid=.76*mid+.24*n;
+        const env=Math.sin(Math.PI*u)**1.7*(1-.35*u);
+        out[i]=env*(.85*low+.52*mid);
       }
       return b;
     }
@@ -341,8 +340,8 @@
       // Distinct low pressure and high reed-rustle layers keep a crosswind
       // audible while preserving a broad, centred headwind at speed.
       const lee=pan(master,0), pressureGain=gain(0,lee.input);
-      const pressureCutoff=filter("lowpass",330,.59,pressureGain);
-      loop(breeze,filter("highpass",58,.54,pressureCutoff),1.81);
+      const pressureCutoff=filter("lowpass",380,.35,pressureGain);
+      loop(breeze,filter("highpass",95,.38,pressureCutoff),1.81);
       airPressure={level:pressureGain.gain,cutoff:pressureCutoff.frequency,pan:lee.param};
 
       const tireGain = gain(0, master);
@@ -486,8 +485,8 @@
       const gust = localGust, ripple=.97+.03*Math.sin(now*5.3+2.1*Math.sin(now*.73));
       wind.level.setTargetAtTime((.041+.196*speed)*(.59+.67*gust)*(.76+.45*windStrength)*ripple,now,.16);
       wind.cutoff.setTargetAtTime(820+2300*speed+770*gust,now,.19);
-      airPressure.level.setTargetAtTime((.035+.38*speed**1.38)*(.7+.56*gust),now,.17);
-      airPressure.cutoff.setTargetAtTime(225+215*speed+95*gust,now,.26);
+      airPressure.level.setTargetAtTime((.018+.15*Math.min(1,speed)**1.3)*(.65+.45*gust),now,.18);
+      airPressure.cutoff.setTargetAtTime(280+380*Math.min(1,speed)+95*gust,now,.26);
       if(airPressure.pan)airPressure.pan.setTargetAtTime(.42*sourceSide*(.3+.7*gust)/(1+.53*speed),now,.22);
       const gravelMix=road.gravel||0,earth=road.dirt||0,planks=road.planks||0;
       const ford=road.wetTrack||0;
