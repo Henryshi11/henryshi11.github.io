@@ -62,7 +62,9 @@
     const cols=cfg.cols||60,rows=cfg.rows||20;
     const mesh=grid(T,cols,rows,(u,v,p,k)=>{
       const az=center+(u-.5)*arc;
-      const depth=cfg.r-Math.sin(u*Math.PI)*(cfg.bulge||120);
+      // Optional 3D depth relief brings lower foreground viaducts/foothills closer for genuine motion parallax!
+      const relief=(cfg.parallax||0)*(1-smoothStep(.06,.52,v));
+      const depth=cfg.r-Math.sin(u*Math.PI)*(cfg.bulge||120)-relief;
       p[k]=(cfg.ox||0)+Math.sin(az)*depth;
       p[k+1]=cfg.yMin+v*cfg.height;
       p[k+2]=(cfg.oz||0)-Math.cos(az)*depth;
@@ -147,8 +149,9 @@
           a*=smoothstep(.01,.10,min(uv.x,1.-uv.x))*smoothstep(.0,.10,uv.y);
           if(a<.01)discard;
           vec3 rgb=mix(c.rgb,c2.rgb,.32)*uTint;
-          // Bright sunlit upper crown + soft sky-blue belly
-          rgb=mix(rgb,vec3(1.0,1.0,1.02),.16*smoothstep(.35,.90,uv.y));
+          // Radiant HDR sunlit upper cloud crown + rich cobalt-shaded cloud belly
+          float crown=smoothstep(.38,.92,uv.y);
+          rgb=mix(rgb*vec3(.78,.86,1.02),vec3(1.15,1.14,1.10),.28*crown);
           gl_FragColor=vec4(rgb,a);
           #include <colorspace_fragment>
         }`
@@ -196,7 +199,7 @@
           float env=smoothstep(.0,.18,min(u,1.-u))*smoothstep(.0,.22,v)*(1.-smoothstep(.45,1.0,v));
           float a=vapor*env*uAlpha;
           if(a<.008)discard;
-          vec3 col=mix(vec3(.78,.89,1.0),vec3(.98,.99,1.0),smoothstep(.2,.85,v));
+          vec3 col=mix(vec3(.24,.50,.95),vec3(1.02,1.02,1.0),smoothstep(.18,.88,v));
           gl_FragColor=vec4(col,a);
           #include <colorspace_fragment>
         }`
@@ -248,12 +251,15 @@
       if(strip1Snow){
         placeRingStrip(T,scene,strip1Snow,{
           name:'Layer 1 — 360° Ultra-far snow mountain skyline',r:5780,yMin:-120,height:740,repeat:3,wobble:140,order:-10,
-          key:'layer1-far-snow-ring',
+          key:'layer1-far-snow-ring-v2',
           heightMod:a=>1-.22*Math.exp(-Math.pow(Math.sin((a-10.5*radians)*.5)/.18,2)),
           shader:`
-            float air=.26+.28*(1.-smoothstep(.08,.78,vMapUv.y));
-            diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.45,.67,.95),air);
-            diffuseColor.a*=smoothstep(.01,.10,vMapUv.y)*.90;`
+            float lum=dot(diffuseColor.rgb,vec3(.2126,.7152,.0722));
+            diffuseColor.rgb=mix(vec3(.045,.16,.78),vec3(1.12,1.11,1.08),smoothstep(.08,.72,lum));
+            vec3 skyScatter=mix(vec3(.24,.50,.95),vec3(.08,.26,.88),smoothstep(.08,.82,vMapUv.y));
+            float air=.22+.28*(1.-smoothstep(.08,.78,vMapUv.y));
+            diffuseColor.rgb=mix(diffuseColor.rgb,skyScatter,air);
+            diffuseColor.a*=smoothstep(.01,.10,vMapUv.y)*.92;`
         });
       }
       if(cloudBank){
@@ -281,31 +287,37 @@
       // Crisp cobalt-blue snow-capped alpine peaks across the wide Western transition & NW saddle
       if(transSnowPeaks){
         for(const sp of [
-          {az:-98,arcDeg:58,r:5280,yMin:15,height:540,flipX:true,air:.18,key:'tsp-west-gap'},
-          {az:-28,arcDeg:46,r:5320,yMin:10,height:450,flipX:false,air:.20,key:'tsp-nw-saddle'},
-          {az:162,arcDeg:54,r:5300,yMin:10,height:490,flipX:false,air:.19,key:'tsp-south'}
+          {az:-98,arcDeg:58,r:5280,yMin:15,height:540,flipX:true,air:.15,key:'tsp-west-gap-v2'},
+          {az:-28,arcDeg:46,r:5320,yMin:10,height:450,flipX:false,air:.17,key:'tsp-nw-saddle-v2'},
+          {az:162,arcDeg:54,r:5300,yMin:10,height:490,flipX:false,air:.16,key:'tsp-south-v2'}
         ]){
           placeCurvedVista(T,scene,transSnowPeaks,{
             name:'Layer 1B — Crisp far cobalt snow peaks',az:sp.az,arcDeg:sp.arcDeg,r:sp.r,yMin:sp.yMin,height:sp.height,
             bulge:130,flipX:sp.flipX,order:-8,key:sp.key,cols:44,rows:10,
             shader:`
+              float lum=dot(diffuseColor.rgb,vec3(.2126,.7152,.0722));
+              diffuseColor.rgb=mix(vec3(.035,.12,.72),vec3(1.18,1.16,1.10),smoothstep(.07,.70,lum));
+              vec3 skyScatter=mix(vec3(.22,.48,.94),vec3(.065,.23,.87),smoothstep(.08,.78,vMapUv.y));
               float air=${sp.air.toFixed(2)}+.20*(1.-smoothstep(.08,.74,vMapUv.y));
-              diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.43,.65,.94),air);
+              diffuseColor.rgb=mix(diffuseColor.rgb,skyScatter,air);
               diffuseColor.a*=smoothstep(.008,.10,min(vMapUv.x,1.-vMapUv.x))*smoothstep(.01,.10,vMapUv.y);`
           });
         }
       }
 
       // =========================================================================
-      // LAYER 2 (r≈4020-5250, order -8..-5): CORE WONDERS WITH LIVING SHADERS!
+      // LAYER 2 (r≈4020-5250, order -8..-5): CORE WONDERS WITH LIVING SHADERS & AAA CONTRAST!
       // =========================================================================
       // 2A. EAST (+96°): Snow Mountain Sanctuary with ANIMATED PULSING & FLOWING CYAN PORTAL LIGHT!
       if(farPeak){
         const mat=makeVistaMat(T,farPeak,`
-          float air=.22+.24*(1.-smoothstep(.10,.70,vMapUv.y));
-          diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.42,.64,.93),air);
+          float lum=dot(diffuseColor.rgb,vec3(.2126,.7152,.0722));
+          diffuseColor.rgb=mix(vec3(.035,.12,.72),vec3(1.16,1.14,1.09),smoothstep(.08,.72,lum));
+          vec3 skyScatter=mix(vec3(.22,.48,.94),vec3(.065,.23,.87),smoothstep(.10,.76,vMapUv.y));
+          float air=.16+.22*(1.-smoothstep(.10,.70,vMapUv.y));
+          diffuseColor.rgb=mix(diffuseColor.rgb,skyScatter,air);
           diffuseColor.a*=smoothstep(.005,.07,min(vMapUv.x,1.-vMapUv.x));`,
-          'far-alpine-back-crest',.015);
+          'far-alpine-back-crest-v2',.015);
         const angle=120*radians,sa=Math.sin(angle),ca=Math.cos(angle);
         const w=5600,h=w*farPeak.image.height/farPeak.image.width*1.08,r=5250;
         const m=grid(T,56,28,(u,v,p,k)=>{
@@ -316,61 +328,73 @@
       }
       if(snowT04){
         for(const w of [
-          {az:56,arcDeg:44,r:4760,yMin:-50,height:720,flipX:false,air:.20,order:-7,key:'t04-ne'},
-          {az:132,arcDeg:48,r:4680,yMin:-45,height:790,flipX:true,air:.18,order:-7,key:'t04-se'}
+          {az:56,arcDeg:44,r:4760,yMin:-50,height:720,flipX:false,air:.15,order:-7,key:'t04-ne-v2'},
+          {az:132,arcDeg:48,r:4680,yMin:-45,height:790,flipX:true,air:.14,order:-7,key:'t04-se-v2'}
         ]){
           placeCurvedVista(T,scene,snowT04,{
             name:'T04 Snow mountain range extension',az:w.az,arcDeg:w.arcDeg,r:w.r,yMin:w.yMin,height:w.height,
             bulge:120,flipX:w.flipX,order:w.order,key:w.key,cols:40,rows:12,
             shader:`
+              float lum=dot(diffuseColor.rgb,vec3(.2126,.7152,.0722));
+              diffuseColor.rgb=mix(vec3(.032,.11,.70),vec3(1.18,1.16,1.10),smoothstep(.08,.72,lum));
+              vec3 skyScatter=mix(vec3(.22,.48,.94),vec3(.06,.22,.86),smoothstep(.10,.76,vMapUv.y));
               float air=${w.air.toFixed(2)}+.18*(1.-smoothstep(.10,.72,vMapUv.y));
-              diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.42,.64,.93),air);
+              diffuseColor.rgb=mix(diffuseColor.rgb,skyScatter,air);
               diffuseColor.a*=smoothstep(.005,.09,min(vMapUv.x,1.-vMapUv.x))*smoothstep(.01,.10,vMapUv.y);`
           });
         }
       }
       if(snowSanctuary){
         placeCurvedVista(T,scene,snowSanctuary,{
-          name:'Grand Eastern Snow Sanctuary',az:96,arcDeg:66,r:4020,yMin:-165,height:2180,bulge:210,order:-5,
-          key:'new-snow-sanctuary-animated-portal',
+          name:'Grand Eastern Snow Sanctuary',az:96,arcDeg:66,r:4180,yMin:-165,height:2180,bulge:210,parallax:520,order:-5,
+          key:'new-snow-sanctuary-aaa',
           shader:`
             float footFade=smoothstep(.005,.10,vMapUv.y);
             float sideFade=smoothstep(.004,.07,min(vMapUv.x,1.-vMapUv.x));
-            // Detect the glowing cyan portal & ice falls inside the sanctuary arch and animate flowing aurora/water light!
+            float lum=dot(diffuseColor.rgb,vec3(.2126,.7152,.0722));
+            // Exaggerated White-City-matched contrast: deep royal cobalt shadows + blazing HDR sunlit spires!
+            float stoneMask=1.-smoothstep(.05,.24,diffuseColor.g-max(diffuseColor.r,diffuseColor.b*.82));
+            vec3 sculpted=mix(vec3(.028,.095,.64),vec3(1.25,1.22,1.14),smoothstep(.06,.68,lum));
+            diffuseColor.rgb=mix(diffuseColor.rgb,sculpted,stoneMask*.52);
+            diffuseColor.rgb+=vec3(.16,.15,.10)*smoothstep(.62,.96,lum)*stoneMask;
+            // Detect the glowing cyan portal & ice falls inside the sanctuary arch and animate HDR aurora/water light!
             float portalBox=smoothstep(.60,.64,vMapUv.x)*(1.-smoothstep(.81,.86,vMapUv.x))
               *smoothstep(.30,.36,vMapUv.y)*(1.-smoothstep(.73,.79,vMapUv.y));
-            float cyanChroma=smoothstep(.12,.45,diffuseColor.b-diffuseColor.r)*smoothstep(.38,.82,diffuseColor.g);
+            float cyanChroma=smoothstep(.08,.36,diffuseColor.b-diffuseColor.r)*smoothstep(.22,.78,diffuseColor.g);
             float glowMask=portalBox*cyanChroma;
             if(glowMask>.01){
               float flow1=.5+.5*sin(vMapUv.y*58.+uVistaTime*4.2+sin(vMapUv.x*42.)*1.6);
               float flow2=.5+.5*sin(vMapUv.y*96.+uVistaTime*6.8-vMapUv.x*35.);
               float pulse=.78+.22*sin(uVistaTime*1.85);
               float shimmer=(flow1*.62+flow2*.38)*pulse;
-              vec3 aura=mix(vec3(.20,.82,1.0),vec3(.88,.99,1.0),shimmer);
-              diffuseColor.rgb=mix(diffuseColor.rgb,aura,.48*glowMask)+vec3(.14,.34,.45)*shimmer*glowMask;
+              vec3 aura=mix(vec3(.08,.68,1.05),vec3(.95,1.18,1.25),shimmer);
+              diffuseColor.rgb=mix(diffuseColor.rgb,aura,.58*glowMask)+vec3(.18,.42,.55)*shimmer*glowMask;
             }
-            float air=.03+.13*(1.-smoothstep(.12,.64,vMapUv.y));
-            diffuseColor.rgb=mix(diffuseColor.rgb*vec3(1.02,1.03,1.05),vec3(.38,.60,.92),air);
+            vec3 skyScatter=mix(vec3(.22,.48,.94),vec3(.055,.21,.86),smoothstep(.12,.75,vMapUv.y));
+            float air=.02+.13*(1.-smoothstep(.10,.62,vMapUv.y));
+            diffuseColor.rgb=mix(diffuseColor.rgb,skyScatter,air);
             diffuseColor.a*=footFade*sideFade;`
         },timeU);
       }
 
-      // 2B. NORTHWEST-WEST (-54°): BRAND-NEW ULTRA-DETAILED ORNATE TWIN WHITE RINGS!
-      // Moved cleanly away from SW Waterfall Gorge (-147°) into the former Sky Island sector, leaving ~40° of serene mountain transitions!
+      // 2B. NORTHWEST-WEST (-54°): BRAND-NEW ULTRA-DETAILED ORNATE TWIN WHITE RINGS (with 3D depth parallax & AAA contrast!)
       if(ornateRings){
         placeCurvedVista(T,scene,ornateRings,{
-          name:'Ornate Colossal Twin White Rings',az:-54,arcDeg:43,r:4480,yMin:-255,height:2060,bulge:160,flipX:false,order:-6,
-          key:'ornate-twin-rings-final',
+          name:'Ornate Colossal Twin White Rings',az:-54,arcDeg:43,r:4620,yMin:-255,height:2060,bulge:160,parallax:560,flipX:false,order:-6,
+          key:'ornate-twin-rings-aaa',
           shader:`
             float footFade=smoothstep(.003,.065,vMapUv.y);
             float sideFade=smoothstep(.003,.045,min(vMapUv.x,1.-vMapUv.x));
-            float lum=dot(diffuseColor.rgb,vec3(.299,.587,.114));
-            // Preserve the intricate carved gothic stonework & rooftop greenery, adding a gentle breathing marble sunlight glint
-            vec3 col=diffuseColor.rgb*vec3(1.02,1.03,1.05);
-            float rimGleam=smoothstep(.85,.99,lum)*smoothstep(.22,.56,vMapUv.y)*(.72+.28*sin(uVistaTime*.70+vMapUv.x*5.2));
-            col+=vec3(.07,.06,.03)*rimGleam;
-            float air=.03+.14*(1.-smoothstep(.08,.58,vMapUv.y));
-            diffuseColor.rgb=mix(col,vec3(.40,.62,.93),air);
+            float lum=dot(diffuseColor.rgb,vec3(.2126,.7152,.0722));
+            // Preserve all carved gothic filigree & clocktower detail while aligning shadows to royal cobalt!
+            float terraceGreen=smoothstep(.04,.18,diffuseColor.g-max(diffuseColor.r,diffuseColor.b*.90));
+            vec3 cobaltSculpt=mix(vec3(.018,.068,.48),vec3(1.14,1.12,1.06),smoothstep(.04,.86,lum));
+            vec3 col=mix(diffuseColor.rgb*vec3(1.03,1.03,1.02),cobaltSculpt,(1.-terraceGreen)*.44);
+            float rimGleam=smoothstep(.76,.98,lum)*smoothstep(.22,.58,vMapUv.y)*(.76+.24*sin(uVistaTime*.70+vMapUv.x*5.2));
+            col+=vec3(.12,.11,.07)*rimGleam*(1.-terraceGreen);
+            vec3 skyScatter=mix(vec3(.22,.48,.94),vec3(.055,.21,.86),smoothstep(.10,.72,vMapUv.y));
+            float air=.025+.13*(1.-smoothstep(.08,.56,vMapUv.y));
+            diffuseColor.rgb=mix(col,skyScatter,air);
             diffuseColor.a*=footFade*sideFade;`
         },timeU);
       }
@@ -399,54 +423,60 @@
       // Soft misty blue mid-distance mountain range (NEW trans-blue-mountains.png) unifying the wide Western gap & 360° horizon
       if(transBlueMtns){
         for(const b of [
-          {az:-96,arcDeg:58,r:4150,yMin:-45,height:420,flipX:true,key:'tbm-west-gap'},
-          {az:-32,arcDeg:48,r:4080,yMin:-55,height:370,flipX:false,key:'tbm-nw-saddle'},
-          {az:50,arcDeg:48,r:4100,yMin:-55,height:380,flipX:false,key:'tbm-ne'},
-          {az:144,arcDeg:50,r:4120,yMin:-50,height:390,flipX:false,key:'tbm-se'}
+          {az:-96,arcDeg:58,r:4150,yMin:-45,height:420,flipX:true,key:'tbm-west-gap-v2'},
+          {az:-32,arcDeg:48,r:4080,yMin:-55,height:370,flipX:false,key:'tbm-nw-saddle-v2'},
+          {az:50,arcDeg:48,r:4100,yMin:-55,height:380,flipX:false,key:'tbm-ne-v2'},
+          {az:144,arcDeg:50,r:4120,yMin:-50,height:390,flipX:false,key:'tbm-se-v2'}
         ]){
           placeCurvedVista(T,scene,transBlueMtns,{
             name:'Layer 3A — Misty blue mid-distance mountain range',az:b.az,arcDeg:b.arcDeg,r:b.r,yMin:b.yMin,height:b.height,
             bulge:115,flipX:b.flipX,order:-5,key:b.key,cols:44,rows:10,
             shader:`
-              float air=.10+.22*(1.-smoothstep(.08,.74,vMapUv.y));
-              diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.42,.66,.93),air);
+              vec3 skyScatter=mix(vec3(.21,.46,.93),vec3(.06,.22,.86),smoothstep(.08,.76,vMapUv.y));
+              float air=.08+.20*(1.-smoothstep(.08,.74,vMapUv.y));
+              diffuseColor.rgb=mix(diffuseColor.rgb*vec3(.94,.98,1.08),skyScatter,air);
               diffuseColor.a*=smoothstep(.01,.11,min(vMapUv.x,1.-vMapUv.x))*smoothstep(.01,.12,vMapUv.y);`
           });
         }
       }
 
-      // Rolling green-blue ridges & misty cliff plateau (NEW trans-hills-cliff.png):
-      // Flipped in West-Southwest so its cliff plateau gracefully bridges into the Waterfall Gorge (-147°..-115°),
-      // while its gentle green ridges slope smoothly rightward toward the Ornate Twin Rings (-54°)!
+      // Rolling green-blue ridges & misty cliff plateau (NEW trans-hills-cliff.png)
       if(transHillsCliff){
         for(const b of [
-          {az:-102,arcDeg:52,r:3580,yMin:-85,height:375,flipX:true,key:'thc-wsw-bridge'},
-          {az:164,arcDeg:48,r:3560,yMin:-85,height:350,flipX:false,key:'thc-sse'}
+          {az:-102,arcDeg:52,r:3580,yMin:-85,height:375,flipX:true,key:'thc-wsw-bridge-v2'},
+          {az:164,arcDeg:48,r:3560,yMin:-85,height:350,flipX:false,key:'thc-sse-v2'}
         ]){
           placeCurvedVista(T,scene,transHillsCliff,{
             name:'Layer 3B — Green-blue ridge & misty cliff plateau',az:b.az,arcDeg:b.arcDeg,r:b.r,yMin:b.yMin,height:b.height,
             bulge:100,flipX:b.flipX,order:-4,key:b.key,cols:44,rows:10,
             shader:`
-              float air=.10+.20*(1.-smoothstep(.08,.74,vMapUv.y));
-              diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.44,.67,.91),air);
+              float lum=dot(diffuseColor.rgb,vec3(.2126,.7152,.0722));
+              // Warm sunlit crests toward 3D golden-lime grass, deepen shadows toward royal cobalt
+              diffuseColor.rgb*=mix(vec3(.65,.80,1.08),vec3(1.22,1.18,.78),smoothstep(.10,.46,lum));
+              vec3 skyScatter=mix(vec3(.20,.45,.90),vec3(.07,.24,.85),smoothstep(.08,.75,vMapUv.y));
+              float air=.08+.18*(1.-smoothstep(.08,.74,vMapUv.y));
+              diffuseColor.rgb=mix(diffuseColor.rgb,skyScatter,air);
               diffuseColor.a*=smoothstep(.01,.11,min(vMapUv.x,1.-vMapUv.x))*smoothstep(.01,.12,vMapUv.y);`
           });
         }
       }
 
-      // Delicate distant white viaduct ruins tucked across the Twin Rings & Western hills (echoing the concept art!)
+      // Delicate distant white viaduct ruins tucked across the Twin Rings & Western hills
       if(strip4Ruins){
         for(const b of [
-          {az:-42,arcDeg:46,r:3420,yMin:-100,height:295,flipX:false,key:'s4-nw-rings'},
-          {az:-84,arcDeg:42,r:3460,yMin:-105,height:285,flipX:true,key:'s4-west-link'},
-          {az:176,arcDeg:46,r:3460,yMin:-105,height:315,flipX:false,key:'s4-south'}
+          {az:-42,arcDeg:46,r:3420,yMin:-100,height:295,flipX:false,key:'s4-nw-rings-v2'},
+          {az:-84,arcDeg:42,r:3460,yMin:-105,height:285,flipX:true,key:'s4-west-link-v2'},
+          {az:176,arcDeg:46,r:3460,yMin:-105,height:315,flipX:false,key:'s4-south-v2'}
         ]){
           placeCurvedVista(T,scene,strip4Ruins,{
             name:'Layer 3C — Distant white viaduct ruins and hills',az:b.az,arcDeg:b.arcDeg,r:b.r,yMin:b.yMin,height:b.height,
             bulge:95,flipX:b.flipX,order:-4,key:b.key,cols:44,rows:10,
             shader:`
-              float air=.12+.22*(1.-smoothstep(.10,.76,vMapUv.y));
-              diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.44,.67,.92),air);
+              float lum=dot(diffuseColor.rgb,vec3(.2126,.7152,.0722));
+              diffuseColor.rgb*=mix(vec3(.70,.82,1.06),vec3(1.18,1.16,.96),smoothstep(.14,.62,lum));
+              vec3 skyScatter=mix(vec3(.20,.45,.90),vec3(.07,.24,.85),smoothstep(.10,.76,vMapUv.y));
+              float air=.08+.18*(1.-smoothstep(.10,.76,vMapUv.y));
+              diffuseColor.rgb=mix(diffuseColor.rgb,skyScatter,air);
               diffuseColor.a*=smoothstep(.01,.12,min(vMapUv.x,1.-vMapUv.x))*smoothstep(.01,.12,vMapUv.y);`
           });
         }
@@ -454,76 +484,89 @@
       if(strip3Falls){
         placeCurvedVista(T,scene,strip3Falls,{
           name:'Layer 3D — Subtle distant cascade green ridge',az:-114,arcDeg:38,r:3340,yMin:-95,height:315,bulge:90,flipX:true,order:-4,
-          key:'s3-falls-west-link',cols:40,rows:10,
+          key:'s3-falls-west-link-v2',cols:40,rows:10,
           shader:`
-            float air=.13+.20*(1.-smoothstep(.08,.74,vMapUv.y));
-            diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.44,.68,.90),air);
+            float lum=dot(diffuseColor.rgb,vec3(.2126,.7152,.0722));
+            diffuseColor.rgb*=mix(vec3(.65,.80,1.06),vec3(1.20,1.16,.80),smoothstep(.10,.50,lum));
+            vec3 skyScatter=mix(vec3(.20,.45,.89),vec3(.07,.24,.84),smoothstep(.08,.74,vMapUv.y));
+            float air=.09+.17*(1.-smoothstep(.08,.74,vMapUv.y));
+            diffuseColor.rgb=mix(diffuseColor.rgb,skyScatter,air);
             diffuseColor.a*=smoothstep(.01,.12,min(vMapUv.x,1.-vMapUv.x))*smoothstep(.01,.12,vMapUv.y);`
         });
       }
       if(strip5Cliffs){
         placeCurvedVista(T,scene,strip5Cliffs,{
           name:'Layer 3E — Cloud-wrapped southern plateau cliffs',az:-176,arcDeg:44,r:3360,yMin:-95,height:345,bulge:95,flipX:false,order:-4,
-          key:'s5-cliffs-sw-link',cols:44,rows:10,
+          key:'s5-cliffs-sw-link-v2',cols:44,rows:10,
           shader:`
-            float air=.14+.22*(1.-smoothstep(.08,.74,vMapUv.y));
-            diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.46,.68,.92),air);
+            float lum=dot(diffuseColor.rgb,vec3(.2126,.7152,.0722));
+            diffuseColor.rgb*=mix(vec3(.68,.80,1.06),vec3(1.20,1.16,.82),smoothstep(.10,.52,lum));
+            vec3 skyScatter=mix(vec3(.20,.45,.90),vec3(.07,.24,.84),smoothstep(.08,.74,vMapUv.y));
+            float air=.10+.18*(1.-smoothstep(.08,.74,vMapUv.y));
+            diffuseColor.rgb=mix(diffuseColor.rgb,skyScatter,air);
             diffuseColor.a*=smoothstep(.01,.12,min(vMapUv.x,1.-vMapUv.x))*smoothstep(.01,.12,vMapUv.y);`
         });
       }
 
       // =========================================================================
-      // LAYER 4 (r≈2250-3160, order -3..-2): LUSH ROLLING GREEN HILLS + RISING VALLEY MIST!
+      // LAYER 4 (r≈2250-3160, order -3..-2): 3D-MATCHED GOLDEN-LIME & EMERALD HILLS + MIST!
       // =========================================================================
-      // Mid-foreground sunlit green hills (NEW trans-green-mid.png) + distant shimmering river valley (strip-6)
       if(transGreenMid){
         for(const b of [
-          {az:-62,arcDeg:44,r:3140,yMin:-95,height:300,flipX:false,key:'tgm-rings-foot'},
-          {az:-98,arcDeg:44,r:3160,yMin:-95,height:300,flipX:true,key:'tgm-west-mid'},
-          {az:38,arcDeg:42,r:3150,yMin:-100,height:285,flipX:false,key:'tgm-ne-mid'}
+          {az:-62,arcDeg:44,r:3140,yMin:-95,height:300,flipX:false,key:'tgm-rings-foot-v2'},
+          {az:-98,arcDeg:44,r:3160,yMin:-95,height:300,flipX:true,key:'tgm-west-mid-v2'},
+          {az:38,arcDeg:42,r:3150,yMin:-100,height:285,flipX:false,key:'tgm-ne-mid-v2'}
         ]){
           placeCurvedVista(T,scene,transGreenMid,{
             name:'Layer 4A — Mid-foreground rolling green hills',az:b.az,arcDeg:b.arcDeg,r:b.r,yMin:b.yMin,height:b.height,
             bulge:85,flipX:b.flipX,order:-3,key:b.key,cols:40,rows:10,
             shader:`
-              float air=.09+.18*(1.-smoothstep(.08,.74,vMapUv.y));
-              diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.46,.69,.86),air);
+              float lum=dot(diffuseColor.rgb,vec3(.2126,.7152,.0722));
+              // Bridge 2D green hills directly to 3D meadow's golden-chartreuse highlights & deep emerald shadows!
+              diffuseColor.rgb*=mix(vec3(.55,.76,.96),vec3(1.26,1.20,.68),smoothstep(.08,.44,lum));
+              float air=.06+.14*(1.-smoothstep(.08,.74,vMapUv.y));
+              diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.18,.42,.84),air);
               diffuseColor.a*=smoothstep(.01,.12,min(vMapUv.x,1.-vMapUv.x))*smoothstep(.01,.12,vMapUv.y);`
           });
         }
       }
       if(strip6Valley){
         for(const b of [
-          {az:-80,arcDeg:54,r:3050,yMin:-115,height:265,flipX:true,key:'s6-west-valley'},
-          {az:12,arcDeg:56,r:3060,yMin:-120,height:255,flipX:false,key:'s6-north-valley'},
-          {az:156,arcDeg:52,r:3060,yMin:-115,height:260,flipX:false,key:'s6-se-valley'}
+          {az:-80,arcDeg:54,r:3050,yMin:-115,height:265,flipX:true,key:'s6-west-valley-v2'},
+          {az:12,arcDeg:56,r:3060,yMin:-120,height:255,flipX:false,key:'s6-north-valley-v2'},
+          {az:156,arcDeg:52,r:3060,yMin:-115,height:260,flipX:false,key:'s6-se-valley-v2'}
         ]){
           placeCurvedVista(T,scene,strip6Valley,{
             name:'Layer 4B — Shimmering green river valley',az:b.az,arcDeg:b.arcDeg,r:b.r,yMin:b.yMin,height:b.height,
             bulge:80,flipX:b.flipX,order:-3,key:b.key,cols:44,rows:10,
             shader:`
-              float air=.08+.18*(1.-smoothstep(.08,.75,vMapUv.y));
-              diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.48,.70,.84),air);
-              diffuseColor.a*=smoothstep(.01,.13,min(vMapUv.x,1.-vMapUv.x))*smoothstep(.01,.14,vMapUv.y)*.90;`
+              float lum=dot(diffuseColor.rgb,vec3(.2126,.7152,.0722));
+              diffuseColor.rgb*=mix(vec3(.58,.78,.96),vec3(1.22,1.18,.74),smoothstep(.08,.48,lum));
+              float air=.05+.13*(1.-smoothstep(.08,.75,vMapUv.y));
+              diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.18,.42,.82),air);
+              diffuseColor.a*=smoothstep(.01,.13,min(vMapUv.x,1.-vMapUv.x))*smoothstep(.01,.14,vMapUv.y)*.92;`
           });
         }
       }
-      // Closest lush sunlit emerald-gold rolling foreground meadow hills (NEW trans-green-near.png) connecting directly to the 3D grass!
+      // Closest lush sunlit emerald-gold rolling foreground meadow hills (NEW trans-green-near.png)
       if(transGreenNear){
         for(const b of [
-          {az:-52,arcDeg:52,r:2880,yMin:-122,height:275,flipX:false,key:'tgn-rings-front'},
-          {az:-96,arcDeg:48,r:2900,yMin:-120,height:275,flipX:true,key:'tgn-west-front'},
-          {az:6,arcDeg:56,r:2920,yMin:-128,height:265,flipX:false,key:'tgn-north-front'},
-          {az:56,arcDeg:46,r:2910,yMin:-124,height:255,flipX:false,key:'tgn-ne-front'},
-          {az:162,arcDeg:52,r:2930,yMin:-124,height:260,flipX:false,key:'tgn-south-front'}
+          {az:-52,arcDeg:52,r:2880,yMin:-122,height:275,flipX:false,key:'tgn-rings-front-v2'},
+          {az:-96,arcDeg:48,r:2900,yMin:-120,height:275,flipX:true,key:'tgn-west-front-v2'},
+          {az:6,arcDeg:56,r:2920,yMin:-128,height:265,flipX:false,key:'tgn-north-front-v2'},
+          {az:56,arcDeg:46,r:2910,yMin:-124,height:255,flipX:false,key:'tgn-ne-front-v2'},
+          {az:162,arcDeg:52,r:2930,yMin:-124,height:260,flipX:false,key:'tgn-south-front-v2'}
         ]){
           placeCurvedVista(T,scene,transGreenNear,{
             name:'Layer 4C — Lush sunlit rolling foreground meadow hills',az:b.az,arcDeg:b.arcDeg,r:b.r,yMin:b.yMin,height:b.height,
             bulge:75,flipX:b.flipX,order:-2,key:b.key,cols:40,rows:10,
             shader:`
-              float air=.06+.16*(1.-smoothstep(.08,.75,vMapUv.y));
-              diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.50,.71,.82),air);
-              diffuseColor.a*=smoothstep(.01,.12,min(vMapUv.x,1.-vMapUv.x))*smoothstep(.01,.12,vMapUv.y)*.94;`
+              float lum=dot(diffuseColor.rgb,vec3(.2126,.7152,.0722));
+              // Exact warm golden-lime sunlit ridges + deep viridian-cobalt shadows matching 3D pasture!
+              diffuseColor.rgb*=mix(vec3(.52,.75,.92),vec3(1.30,1.22,.64),smoothstep(.07,.42,lum));
+              float air=.04+.11*(1.-smoothstep(.08,.75,vMapUv.y));
+              diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.17,.40,.78),air);
+              diffuseColor.a*=smoothstep(.01,.12,min(vMapUv.x,1.-vMapUv.x))*smoothstep(.01,.12,vMapUv.y)*.95;`
           });
         }
       }

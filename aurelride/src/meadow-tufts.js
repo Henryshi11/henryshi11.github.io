@@ -200,7 +200,8 @@ globalThis.RideMeadowTufts=function(T,scene,rider,time,fields,glsl,rand){
         float droop=.24+.16*aShade.y+.12*wave;
         float y=h*(t-droop*t*t*t*(.51+.63*aForm.w))*(1.-.10*wave)*fade*(1.-.966*crush);
         float form=.18*dot(dir,vec2(.64,.77))+.095*aShade.z*(.36+.64*t);
-        float sunlight=.12+.20*light+.58*smoothstep(.10,.88,t)+form+.16*(wave-.38)+.11*(aShade.y-.5);
+        float glint=smoothstep(.50,.92,wave)*t*.26;
+        float sunlight=.08+.22*light+.62*smoothstep(.08,.86,t)+form+.19*(wave-.38)+.11*(aShade.y-.5)+glint;
         // Narrow distant ribbons share the value of the mass behind them.
         // Subpixel roots then resolve into a meadow instead of black pins.
         float resolved=1.-smoothstep(8.,38.,dist);

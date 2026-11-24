@@ -75,6 +75,49 @@
     ${root.RideBankTrees?.shadowGLSL || 'float bankTreeShade(vec2 p){return 0.;}'}
     ${root.RideWildfields?.glsl || 'vec2 wildCover(vec2 p){return vec2(0.);} vec3 fieldCover(vec2 p){return vec3(0.);}'}
     float treeShade(vec2 p){return max(orchardShade(p),bankTreeShade(p));}
+    // Analytical directional sun shadow cast by the 1.56km Eastern White-Stone Great Wall & River Aqueduct!
+    float wallCenterX_gl(float z){
+      return 54.+18.*sin(z*.0055)+6.*cos(z*.014)+max(0.,-z-650.)*.035;
+    }
+    float monumentShadow(vec2 p){
+      float sh=0.;
+      // 1. Eastern Great Wall shadow cast West-Northwest across the grassy hillside (with subtle merlon teeth!)
+      if(p.y>-1205. && p.y<390. && p.x>-10. && p.x<128.){
+        float approxX=wallCenterX_gl(p.y);
+        float dx=approxX-p.x;
+        if(dx>2.8 && dx<32.){
+          float zSrc=p.y+dx*.94;
+          if(zSrc>-1180. && zSrc<380. && (zSrc<82. || zSrc>118.)){
+            float sRamp=smoothstep(0.,85.,380.-zSrc);
+            float nRamp=smoothstep(0.,85.,zSrc+1180.);
+            float gS=zSrc>118.?smoothstep(0.,62.,zSrc-118.):1.;
+            float gN=zSrc<82.?smoothstep(0.,62.,82.-zSrc):1.;
+            float f=sRamp*nRamp*gS*gN;
+            float cx=wallCenterX_gl(zSrc);
+            float distW=cx-p.x;
+            float crenel=.65*smoothstep(-.25,.25,sin(zSrc*1.35));
+            float reach=4.0+(19.5+crenel)*f;
+            sh=max(sh,smoothstep(3.2,4.3,distW)*(1.-smoothstep(reach-1.4,reach+.6,distW))*smoothstep(.05,.25,f)*.94);
+          }
+        }
+      }
+      // 2. Towering White River Aqueduct shadow + sunlit arch shafts across the western valley
+      if(p.y>-275. && p.y<-195. && p.x>-1135. && p.x<-365.){
+        float s=p.x+681.1+42.;
+        if(s>-404. && s<302.){
+          float az=-205.+8.5*sin(s*.007);
+          float dz=az-p.y;
+          float archWave=.5+.5*cos(s*.104);
+          float spanBand=smoothstep(24.,30.,dz)*(1.-smoothstep(48.,56.,dz));
+          float pierBand=smoothstep(6.,28.,dz)*(1.-smoothstep(48.,55.,dz))*smoothstep(.58,.86,archWave);
+          sh=max(sh,max(spanBand*.88,pierBand*.82));
+        }
+      }
+      return sh;
+    }
+    float worldSunShadow(vec2 p){
+      return clamp(max(rideCloudShade(p),monumentShadow(p)),0.,1.);
+    }
     float fieldLensClear(vec2 p,vec2 rider){
       vec2 delta=p-cameraPosition.xz;
       if(dot(delta,delta)>20.)return 1.;
@@ -125,7 +168,7 @@
       return smoothstep(.17,.83,islands);
     }
     float meadowFacing(vec3 surfaceNormal){
-      return smoothstep(.30,.94,dot(normalize(surfaceNormal),vec3(.447,.696,.563)));
+      return smoothstep(-.08,.78,dot(normalize(surfaceNormal),normalize(vec3(.55,.62,.56))));
     }
     float snowCover(vec2 p,float elev){
       // Snow appears strictly toward the Eastern Snow Mountain Range (+X) with soft organic drift edges,
@@ -134,12 +177,14 @@
       return smoothstep(145.,355.,p.x+drift);
     }
     vec3 meadowReflectance(float sun,float maturity,float stand){
-      float intensity=clamp(sun,0.,1.);
-      vec3 shade=vec3(.125,.285,.115);
-      vec3 lamina=vec3(.385,.605,.175);
-      vec3 lit=vec3(.735,.835,.255);
-      vec3 pigment=mix(shade,lamina,min(1.,intensity/.50));
-      pigment=mix(pigment,lit,max(0.,(intensity-.50)/.50));
+      float intensity=clamp(sun,0.,1.18);
+      // Rich Ghibli emerald-viridian pasture midtones, deep velvet pine shadows, and sunlit golden-chartreuse crests!
+      vec3 shade=vec3(.048,.168,.092);
+      vec3 lamina=vec3(.265,.525,.138);
+      vec3 lit=vec3(.705,.845,.218);
+      vec3 pigment=mix(shade,lamina,smoothstep(.0,.50,intensity));
+      pigment=mix(pigment,lit,smoothstep(.46,.98,intensity));
+      pigment+=vec3(.14,.15,.05)*max(0.,intensity-.94);
       return pigment+vec3(.036,.012,-.014)*(maturity-.5)+vec3(.010,.014,.012)*stand;
     }
     float windfront(vec2 p,float time) {
@@ -161,7 +206,7 @@
       vec3 marsh=vec3(value*.62,value*1.08,value*.72)+vec3(.005,.034,.034);
       vec3 straw=vec3(value*1.10,value*1.12,value*.72)+vec3(.036,.046,.018);
       vec3 foliage=mix(mix(c,marsh,.81*zone.z),straw,.46*zone.w);
-      foliage*=mix(vec3(1.),vec3(.71,.78,.86),rideCloudShade(p))*treeLight(p);
+      foliage*=mix(vec3(1.),vec3(.24,.38,.54),worldSunShadow(p))*treeLight(p);
       return foliage*mix(vec3(1.),vec3(.86,.90,.94),uWeatherWet);
     }
     float riverGrass(vec2 p){
@@ -178,17 +223,17 @@
     uniform sampler2D uCyclistMask;
     uniform float uMaskStrength,uMaskSpan;
     float cyclistOcclusion(vec2 p,float heightAboveSoil) {
-      vec2 q=p-uRider+vec2(-.643,-.810)*heightAboveSoil;
+      vec2 q=p-uRider+vec2(-.96,-.92)*heightAboveSoil;
       if(max(abs(q.x),abs(q.y))>.5*uMaskSpan || uMaskStrength<.01)return 0.;
       vec2 uv=.5+vec2(q.x,-q.y)/uMaskSpan;
-      const float spread=.0085;
-      float occlusion=texture2D(uCyclistMask,uv).a*.40
-        +.15*(texture2D(uCyclistMask,uv+vec2(spread,0.)).a+texture2D(uCyclistMask,uv-vec2(spread,0.)).a
+      const float spread=.0055;
+      float occlusion=texture2D(uCyclistMask,uv).a*.48
+        +.13*(texture2D(uCyclistMask,uv+vec2(spread,0.)).a+texture2D(uCyclistMask,uv-vec2(spread,0.)).a
         +texture2D(uCyclistMask,uv+vec2(0.,spread)).a+texture2D(uCyclistMask,uv-vec2(0.,spread)).a);
-      return occlusion*uMaskStrength;
+      return clamp(occlusion*uMaskStrength*1.12,0.,1.);
     }
     vec3 grassShadowMultiplier(vec2 p,float heightAboveSoil){
-      return mix(vec3(1.),vec3(.32,.41,.46),cyclistOcclusion(p,heightAboveSoil));
+      return mix(vec3(1.),vec3(.085,.175,.225),cyclistOcclusion(p,heightAboveSoil));
     }
   `;
   function randomSequence(seed) {
@@ -594,8 +639,8 @@
           float crest=mix(depth.b,crown.b,.76);
           float tuftLight=dot(canopySlope,vec2(.62,.78))*(.24+.065*grown)+(crest-.49)*.11;
           float micro=dot(leafNormal,vec2(.447,.563))*.35+(heightInPile-.55)*.28+tuftLight;
-          float glint=smoothstep(.56,.90,wave)*(.038+.037*grown);
-          float sun=.50+.29*(light-.48)+.47*(face-.50)+.10*(tufts-.48)-.050*grown+glint;
+          float glint=smoothstep(.48,.88,wave)*(.085+.065*grown);
+          float sun=.48+.32*(light-.48)+.56*(face-.48)+.11*(tufts-.48)-.045*grown+glint;
           vec3 base=meadowReflectance(sun+micro,maturity,grown);
           float horizon=smoothstep(32.,200.,dist);
           // Once individual flowers fall below a pixel only the warm colour
@@ -644,7 +689,7 @@
             float silverWave=smoothstep(.45,.90,wave)*(.45+.55*noise2(p*.09+vec2(1.5,2.8)));
             base=mix(base,vec3(.88,.86,.72),vZone.z*silverWave*.32);
           }
-          vec3 daylight=mix(vec3(1.),vec3(.69,.76,.86),rideCloudShade(p))*treeLight(p);
+          vec3 daylight=mix(vec3(1.),vec3(.24,.38,.54),worldSunShadow(p))*treeLight(p);
           daylight*=mix(vec3(1.),vec3(.85,.89,.92),uWeatherWet);
           base*=daylight;
           // High-altitude alpine snow: baked 2-layer wind-carved sastrugi relief normals,
@@ -843,13 +888,14 @@
           float h=max(ray.y,0.);
           // Clear air deepens toward the zenith and away from the fixed Southeast world sun (+141°),
           // adding a subtle warm solar sky glow in the Southeast so 360° lighting feels physically grounded!
-          vec3 worldSun=normalize(vec3(.447,.696,.563));
+          vec3 worldSun=normalize(vec3(.55,.62,.56));
           float sunAlign=max(0.,dot(ray,worldSun));
           float northLight=clamp(.5-.5*dot(ray.xz,normalize(vec2(.62,.78))),0.,1.);
-          vec3 azurite=mix(vec3(.245,.565,.955),vec3(.135,.385,.925),northLight);
-          vec3 sky=mix(vec3(.605,.785,.975),azurite,smoothstep(-.025,.28,h));
-          sky=mix(sky,vec3(.065,.235,.795),smoothstep(.20,.88,h));
-          sky+=vec3(.26,.22,.12)*pow(sunAlign,7.)*.42 + vec3(.65,.58,.42)*pow(sunAlign,64.)*.55;
+          // Electric deep royal anime cobalt sky matching the viral White City aesthetic + blazing golden-white solar corona!
+          vec3 azurite=mix(vec3(.195,.505,.975),vec3(.085,.305,.915),northLight);
+          vec3 sky=mix(vec3(.565,.765,.985),azurite,smoothstep(-.02,.26,h));
+          sky=mix(sky,vec3(.042,.175,.775),smoothstep(.18,.86,h));
+          sky+=vec3(.34,.28,.16)*pow(sunAlign,6.)*.52 + vec3(.85,.78,.58)*pow(sunAlign,42.)*.75;
           sky=horizonClouds(sky,ray);
           sky=southernBank(sky,ray);
           sky=rideCloudSky(sky,ray,cameraPosition);
@@ -955,7 +1001,7 @@
             colour=mix(silverPlume,reed,marsh);
           }
           colour*=(.93+.07*aForm.y+.10*w*t)*(1.-.46*crush);
-          colour*=mix(vec3(1.),vec3(.70,.77,.86),rideCloudShade(p))*treeLight(p);
+          colour*=mix(vec3(1.),vec3(.24,.38,.54),worldSunShadow(p))*treeLight(p);
           colour*=grassShadowMultiplier(p,h);
           vColour=colour;gl_Position=projectionMatrix*viewMatrix*vec4(p.x,terrainHeight(center)-.04+h,p.y,1.);
         }`,fragmentShader:`varying vec3 vColour;${displayColor}
@@ -1195,7 +1241,7 @@
     const time={value:0},rider={value:new T.Vector2()};
     const maskFallback=new T.DataTexture(new Uint8Array(4),1,1);
     maskFallback.needsUpdate=true;
-    const shadow={...root.RideWeather.uniforms(T),...root.RideOrchard?.shadowUniforms(T),...root.RideBankTrees?.shadowUniforms(T),...root.RideWildfields?.uniforms(T),...root.RidePathSurface.uniforms(T),uCyclistMask:{value:maskFallback},uMaskStrength:{value:0},uMaskSpan:{value:4.2}};
+    const shadow={...root.RideWeather.uniforms(T),...root.RideOrchard?.shadowUniforms(T),...root.RideBankTrees?.shadowUniforms(T),...root.RideWildfields?.uniforms(T),...root.RidePathSurface.uniforms(T),uCyclistMask:{value:maskFallback},uMaskStrength:{value:0},uMaskSpan:{value:6.2}};
     const contact=tireField(T);
     createSky(T,scene);
     const snowAtmos=alpineSnowAtmosphere(T,scene,time);
@@ -1235,5 +1281,28 @@
     const drift=34*(Math.sin(x*.019+z*.014)+Math.cos(x*.013-z*.017)+2)*.5;
     return smooth(145,355,x+drift);
   }
-  root.RideLand={build,height,windAt,snowAt};
+  function monumentShadowAt(x,z){
+    if(z>-1205 && z<390 && x>-10 && x<128){
+      const approxX=54+18*Math.sin(z*.0055)+6*Math.cos(z*.014)+Math.max(0,-z-650)*.035;
+      const dx=approxX-x;
+      if(dx>2.8 && dx<32){
+        const zSrc=z+dx*.94;
+        if(zSrc>-1180 && zSrc<380 && (zSrc<82 || zSrc>118)){
+          const f=smooth(0,85,380-zSrc)*smooth(0,85,zSrc+1180)*(zSrc>118?smooth(0,62,zSrc-118):1)*(zSrc<82?smooth(0,62,82-zSrc):1);
+          const cx=54+18*Math.sin(zSrc*.0055)+6*Math.cos(zSrc*.014)+Math.max(0,-zSrc-650)*.035;
+          const distW=cx-x,reach=4.0+19.5*f;
+          if(distW>3.4 && distW<reach)return .90*smooth(.05,.25,f);
+        }
+      }
+    }
+    if(z>-275 && z<-195 && x>-1135 && x<-365){
+      const s=x+681.1+42;
+      if(s>-404 && s<302){
+        const dz=(-205+8.5*Math.sin(s*.007))-z;
+        if(dz>24 && dz<54)return .85;
+      }
+    }
+    return 0;
+  }
+  root.RideLand={build,height,windAt,snowAt,monumentShadowAt};
 })(globalThis);

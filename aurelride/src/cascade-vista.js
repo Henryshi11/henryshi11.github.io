@@ -52,14 +52,20 @@
         .replace('#include <color_fragment>',`
           #include <color_fragment>
           float shore=1.-smoothstep(.22,.40,vMapUv.y);
-          float scatter=.045+.055*smoothstep(1000.,5200.,gorgeDistance)+.14*shore+.16*gorgeHaze;
+          float scatter=.035+.050*smoothstep(1000.,5200.,gorgeDistance)+.16*shore+.16*gorgeHaze;
           float value=dot(diffuseColor.rgb,vec3(.2126,.7152,.0722));
-          // Lift stone highlights brighter white and cool grey-brown cliff shadows toward cobalt blue to match White City!
-          float stoneMask=1.-smoothstep(.04,.22,max(diffuseColor.g-diffuseColor.r,diffuseColor.b-diffuseColor.r));
-          vec3 cobaltShadow=mix(vec3(.26,.46,.86),vec3(1.03,1.04,1.06),smoothstep(.18,.84,value));
-          diffuseColor.rgb=mix(diffuseColor.rgb,cobaltShadow,stoneMask*.42);
-          diffuseColor.rgb*=mix(vec3(1.),vec3(.82,.87,.93),gorgeCloud);
-          diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.42,.64,.92),scatter);`);
+          // Exaggerated AAA sunlit-white stone & golden-emerald crest highlights vs deep royal-cobalt gorge shadows (Linear RGB)!
+          float stoneMask=1.-smoothstep(.03,.20,max(diffuseColor.g-diffuseColor.r,diffuseColor.b-diffuseColor.r));
+          vec3 cobaltStone=mix(vec3(.032,.105,.58),vec3(1.22,1.19,1.12),smoothstep(.07,.70,value));
+          diffuseColor.rgb=mix(diffuseColor.rgb,cobaltStone,stoneMask*.58);
+          // Warm sunlit foliage crowns & deepen cliff-shadow greens to match 3D meadow chiaroscuro
+          float foliageMask=smoothstep(.04,.22,diffuseColor.g-max(diffuseColor.r,diffuseColor.b*.85));
+          diffuseColor.rgb*=mix(vec3(1.),mix(vec3(.48,.65,.88),vec3(1.22,1.20,.78),smoothstep(.08,.48,value)),foliageMask*.65);
+          // Radiant white waterfall foam crest boost into HDR bloom
+          diffuseColor.rgb+=vec3(.16,.18,.18)*smoothstep(.65,.96,value);
+          diffuseColor.rgb*=mix(vec3(1.),vec3(.76,.83,.92),gorgeCloud);
+          vec3 skyScatter=mix(vec3(.22,.48,.94),vec3(.06,.22,.86),smoothstep(.20,.82,vMapUv.y));
+          diffuseColor.rgb=mix(diffuseColor.rgb,skyScatter,scatter);`);
     };
     root.RideFarWater.attach(T,material,'range',weather.uWeatherTime);
     return new Promise(resolve=>{

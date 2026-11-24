@@ -104,7 +104,10 @@
     const cover=bank*(.61+.18*Math.sin((clock-27)*.037)+.18*shower);
     state.cloud=Math.max(0,Math.min(1,cover));
     const density=groundDensity(x,z,u);
-    state.cloudShade=cover*smooth(.68-.25*cover,.83-.25*cover,density);
+    // Dramatic fair-weather cumulus shadow islands drift across the basin even on clear sunny days!
+    const fairShade=.78*smooth(.54,.72,density);
+    const overcastShade=cover*smooth(.64-.25*cover,.80-.25*cover,density);
+    state.cloudShade=Math.max(fairShade,overcastShade);
     state.rain=shower*(.32+.68*smooth(.27,.64,density));
     state.wetness=smooth(55+shift,76+shift,clock)*(1-smooth(91+shift,133+shift*.3,clock))
       *(.55+.45*smooth(.24,.67,density));
@@ -130,9 +133,11 @@
       return .065+smoothstep(-.53,.93,sin(phase))*(.62+.305*squall);
     }
     float rideCloudShade(vec2 p) {
-      if(uWeatherCloud<.001)return 0.;
       float column=texture2D(uWeatherMap,(p-uWeatherDrift+vec2(172.,217.))/1460.).r;
-      return uWeatherCloud*smoothstep(.68-.25*uWeatherCloud,.83-.25*uWeatherCloud,column);
+      float detail=texture2D(uWeatherMap,(p*2.1-uWeatherDrift*1.25+vec2(63.,410.))/1460.).g;
+      float fair=smoothstep(.53,.71,column*.82+detail*.18)*.82;
+      float weather=uWeatherCloud*smoothstep(.64-.25*uWeatherCloud,.80-.25*uWeatherCloud,column);
+      return max(fair,weather);
     }
     vec3 rideCloudSky(vec3 color,vec3 worldRay,vec3 eye) {
       if(uWeatherCloud<.001)return color;

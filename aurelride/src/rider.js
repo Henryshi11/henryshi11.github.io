@@ -38,18 +38,19 @@
           uniform float sunVisibility;varying vec3 vPaint,vNormal,vEye;
           void main(){
             vec3 n=normalize(vNormal),v=normalize(vEye);
-            vec3 sun=normalize(mat3(viewMatrix)*vec3(.79,.86,-.36));
-            float nd=dot(n,sun), halfLight=smoothstep(-.28,.28,nd);
-            float light=smoothstep(.14,.78,nd);
-            vec3 shadow=vPaint*vec3(.48,.52,.79)+vec3(.011,.012,.029);
-            vec3 halfTone=vPaint*vec3(.81,.81,.93);
+            vec3 sun=normalize(mat3(viewMatrix)*vec3(.55,.62,.56));
+            float nd=dot(n,sun), halfLight=smoothstep(-.18,.16,nd);
+            float light=smoothstep(.08,.46,nd);
+            vec3 shadow=vPaint*vec3(.34,.42,.76)+vec3(.008,.014,.042);
+            vec3 halfTone=vPaint*vec3(.74,.78,.95);
             float linen=smoothstep(.38,.72,min(vPaint.r,min(vPaint.g,vPaint.b)));
-            shadow=mix(shadow,vPaint*vec3(.30,.45,.76)+vec3(.012,.023,.057),linen);
-            halfTone=mix(halfTone,vPaint*vec3(.75,.82,1.01),linen);
-            vec3 rgb=mix(mix(shadow,halfTone,halfLight),vPaint*vec3(1.03,1.00,.94),light);
-            float Fresnel=pow(1.-max(0.,dot(n,v)),3.5);
-            rgb+=Fresnel*(.014+.025*light)*vec3(1.,.78,.62);
-            gl_FragColor=vec4(rgb*mix(vec3(.46,.55,.74),vec3(1.),sunVisibility),1.);
+            shadow=mix(shadow,vPaint*vec3(.18,.32,.74)+vec3(.010,.024,.068),linen);
+            halfTone=mix(halfTone,vPaint*vec3(.68,.79,1.02),linen);
+            vec3 rgb=mix(mix(shadow,halfTone,halfLight),vPaint*vec3(1.12,1.08,.99),light);
+            float Fresnel=pow(1.-max(0.,dot(n,v)),2.8);
+            float sunRim=Fresnel*smoothstep(-.22,.72,nd)*(.06+.34*sunVisibility);
+            rgb+=sunRim*vec3(1.06,.95,.74);
+            gl_FragColor=vec4(rgb*mix(vec3(.36,.48,.76),vec3(1.),sunVisibility),1.);
             #include <colorspace_fragment>
           }`
       });
@@ -503,19 +504,19 @@
           // Face normals point out of the back of the garment. Both layers catch
           // transmitted skylight. Soft folds and a narrow selvedge reveal the cut.
           vec3 N=nv<0.?-n:n;
-          vec3 sun=normalize(mat3(viewMatrix)*vec3(.79,.86,-.36));
+          vec3 sun=normalize(mat3(viewMatrix)*vec3(.55,.62,.56));
           float along=.5+.5*cos(23.*u-2.*v+1.5*sin(v*3.4+u*4.));
-          float fold=.18*along+.12*smoothstep(.04,.98,v)+.14*(1.-abs(nv));
+          float fold=.22*along+.14*smoothstep(.04,.98,v)+.15*(1.-abs(nv));
           vec3 face=mix(silk,silkShade,fold);
           float light=dot(N,sun);
-          float silkFlash=pow(max(0.,dot(normalize(eye+sun),N)),12.);
-          vec3 c=gl_FrontFacing?face:mix(lining,silk,.28);
-          float wrapLight=smoothstep(-.62,.78,light);
-          // Warm translucent glow when sunlight shines through the billowing silk.
-          float trans=pow(clamp(dot(-sun,eye)*.5+.5,0.,1.),2.0)*smoothstep(-.35,.65,-light)*(.28+.55*v);
-          c*=mix(vec3(.56,.64,.82),vec3(1.10,1.03,.95),wrapLight);
-          c+=trans*mix(silk,vec3(1.,.72,.30),.45)*.38;
-          c+=silkFlash*.135*mix(c,vec3(1.),.36)+.065*pow(1.-abs(nv),2.2)*vec3(1.,.86,.68);
+          float silkFlash=pow(max(0.,dot(normalize(eye+sun),N)),10.);
+          vec3 c=gl_FrontFacing?face:mix(lining,silk,.32);
+          float wrapLight=smoothstep(-.38,.52,light);
+          // Intense glowing vermilion-gold subsurface scattering when sunlight punches through billowing silk!
+          float trans=pow(clamp(dot(-sun,eye)*.5+.5,0.,1.),1.7)*smoothstep(-.45,.72,-light)*(.35+.65*v)*sunVisibility;
+          c*=mix(vec3(.38,.44,.72),vec3(1.18,1.07,.96),wrapLight);
+          c+=trans*mix(silk,vec3(1.15,.72,.24),.55)*.62;
+          c+=silkFlash*.18*sunVisibility*mix(c,vec3(1.),.45)+.14*sunVisibility*pow(1.-abs(nv),2.2)*vec3(1.08,.88,.62);
           float edge=min(u,1.-u);
           edge=min(edge,mix(1.,abs(.5-u),separate*smoothstep(split,split+.18,v)));
           float binding=band(edge,.0055),piping=band(abs(edge-.020),.0022);
@@ -523,7 +524,7 @@
           c=mix(c,gold,.74*clamp(binding+.69*piping+hem,0.,1.));
           vec2 badge=(cut-vec2(.27,.32))*vec2(9.8,11.3);
           c=mix(c,gold,.80*crest(badge));
-          gl_FragColor=vec4(c*mix(vec3(.51,.60,.77),vec3(1.),sunVisibility),1.);
+          gl_FragColor=vec4(c*mix(vec3(.38,.48,.74),vec3(1.),sunVisibility),1.);
           #include <colorspace_fragment>
         }`});
     const cape=new T.Mesh(capeGeometry,capePaint);
@@ -792,7 +793,7 @@
     // opacity mask, so overlapping silhouette layers cast a single shadow.
     function makeGroundShadow() {
       if(typeof document==="undefined") return ()=>{};
-      const canvas=document.createElement("canvas"),size=192,span=4.2,scale=size/span;
+      const canvas=document.createElement("canvas"),size=256,span=6.2,scale=size/span;
       canvas.width=canvas.height=size;
       const ctx=canvas.getContext("2d");
       if(!ctx)return ()=>{};
@@ -801,8 +802,8 @@
       const receiver={texture:tex,span,strength:0,pasture:false};
       if(options.preview!==true)scope.RideRider.shadow=receiver;
       const g=new T.PlaneGeometry(span,span,4,4);g.rotateX(-Math.PI/2);
-      const mesh=new T.Mesh(g,new T.MeshBasicMaterial({map:tex,color:0x15201c,
-        transparent:true,opacity:.69,depthWrite:false,toneMapped:false,
+      const mesh=new T.Mesh(g,new T.MeshBasicMaterial({map:tex,color:0x0b1938,
+        transparent:true,opacity:.80,depthWrite:false,toneMapped:false,
         polygonOffset:true,polygonOffsetFactor:-2,side:T.DoubleSide}));
       mesh.name="Ground-following rider and bicycle shadow";mesh.renderOrder=2;
       root.add(mesh);
@@ -810,7 +811,7 @@
       const pose=new T.Quaternion(),leanOffset=V();
       const headPose=new T.Matrix4();
       let lastPose=-999;
-      const dx=-.643,dz=-.810;
+      const dx=-.96,dz=-.92;
       let gradientX=0,gradientZ=0,rayVertical=1,altitude=0;
       function project(point,matrix){
         vec.copy(point);
@@ -847,7 +848,7 @@
         altitude=Math.max(0,dynamics.airHeight||0);
         receiver.pasture=Boolean(dynamics.shadowInMeadow);
         mesh.visible=!receiver.pasture&&altitude<1.66;
-        receiver.strength=mesh.material.opacity=(options.preview===true?.23:.62)*sunVisibility.value*(1-T.MathUtils.smoothstep(altitude,.08,1.66));
+        receiver.strength=mesh.material.opacity=(options.preview===true?.28:.86)*sunVisibility.value*(1-T.MathUtils.smoothstep(altitude,.08,1.85));
         if(receiver.strength<=.001)return;
         if(Math.abs(time-lastPose)<1/36-.001)return;
         lastPose=time;pose.copy(root.quaternion).multiply(lean.quaternion);
@@ -1233,7 +1234,8 @@
     }
     unitBall.dispose();unitRod.dispose();
     update(0,0,0,0);
-    return {root,update,motion,axles,looks,setLook,cycleLook,characters,bikes,setCharacter,setBike,
+    const setSunVisibility=v=>{sunVisibility.value=Math.max(.12,Math.min(1,v));};
+    return {root,update,motion,axles,looks,setLook,cycleLook,characters,bikes,setCharacter,setBike,setSunVisibility,
       get look(){return looks[lookIndex];},get character(){return characters[characterIndex];},get bike(){return bikes[bikeIndex];}};
   }
   scope.RideRider={create};

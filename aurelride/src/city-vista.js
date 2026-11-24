@@ -42,15 +42,20 @@ globalThis.RideCityVista=function(T,scene){
         // allowing the white masonry to take on the distant blue air at its foot.
         shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>',`
           #include <color_fragment>
-          // Unify the entire White City into a cohesive luminous alabaster-white + cobalt-blue monument,
-          // stripping mismatched muddy green/pink lower foothills cleanly into distant blue-white horizon mist.
-          float lum=dot(diffuseColor.rgb,vec3(.299,.587,.114));
-          float lowerFoothill=1.-smoothstep(.26,.46,vMapUv.y);
-          float greenness=clamp((diffuseColor.g-max(diffuseColor.r,diffuseColor.b))*3.0,0.,1.);
-          vec3 cleanWhite=mix(vec3(.23,.43,.85),vec3(1.04,1.05,1.08),smoothstep(.15,.82,lum));
-          diffuseColor.rgb=mix(diffuseColor.rgb*vec3(1.06,1.07,1.10),cleanWhite,.38+.52*lowerFoothill+.35*greenness);
-          float air=.032+.12*(1.-smoothstep(.28,.72,vMapUv.y))+.30*lowerFoothill;
-          diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.38,.60,.91),clamp(air,0.,.72));
+          // AAA high-contrast anime monument lighting in TRUE Linear RGB:
+          // Deep royal ultramarine-cobalt shadows + blazing HDR alabaster-white sunlit towers!
+          float lum=dot(diffuseColor.rgb,vec3(.2126,.7152,.0722));
+          float lowerFoothill=1.-smoothstep(.26,.45,vMapUv.y);
+          float greenness=clamp((diffuseColor.g-max(diffuseColor.r,diffuseColor.b))*3.2,0.,1.);
+          vec3 deepCobalt=vec3(.028,.092,.62);
+          vec3 radiantAlabaster=vec3(1.26,1.23,1.16);
+          vec3 sculpted=mix(deepCobalt,radiantAlabaster,smoothstep(.06,.68,lum));
+          diffuseColor.rgb=mix(diffuseColor.rgb*vec3(1.12,1.10,1.08),sculpted,.46+.48*lowerFoothill+.38*greenness);
+          // Push pure sunlit tower faces into HDR bloom range
+          diffuseColor.rgb+=vec3(.18,.16,.11)*smoothstep(.58,.95,lum)*(1.-lowerFoothill);
+          vec3 skyScatter=mix(vec3(.22,.48,.94),vec3(.055,.21,.86),smoothstep(.25,.85,vMapUv.y));
+          float air=.025+.11*(1.-smoothstep(.28,.72,vMapUv.y))+.34*lowerFoothill;
+          diffuseColor.rgb=mix(diffuseColor.rgb,skyScatter,clamp(air,0.,.72));
           float baseFade=smoothstep(.27,.37,vMapUv.y);
           diffuseColor.a*=baseFade*smoothstep(.002,.04,min(vMapUv.x,1.-vMapUv.x));`);
       };

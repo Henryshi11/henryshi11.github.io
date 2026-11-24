@@ -19,19 +19,23 @@
         // corbels and round towers, from the existing batched triangles.
         vec3 stoneCross=cross(dFdx(dressedStonePoint),dFdy(dressedStonePoint));
         vec3 stoneNormal=stoneCross*inversesqrt(max(dot(stoneCross,stoneCross),1.e-12));
-        float stoneSun=dot(stoneNormal,vec3(.447,.696,.563));
+        // Guarantee outward-facing normal toward the viewer even on DoubleSide quads!
+        if(dot(stoneNormal,cameraPosition-dressedStonePoint)<0.)stoneNormal=-stoneNormal;
+        float stoneSun=dot(stoneNormal,normalize(vec3(.55,.62,.56)));
         float value=${colorLine};
-        float exposure=smoothstep(-.67,.70,stoneSun);
-        float openFace=smoothstep(.17,.43,value)*(.5+.5*max(0.,-stoneNormal.x));
-        exposure+=.36*(1.-exposure)*openFace;
-        float dressed=smoothstep(.037,.74,value);
-        float recess=smoothstep(.046,.29,value);
-        vec3 northLight=mix(vec3(.135,.225,.535),vec3(.68,.78,.96),dressed);
-        vec3 ivory=mix(vec3(.40,.45,.60),vec3(.97,.95,.90),dressed);
-        vec3 finished=mix(northLight,ivory,exposure);
-        // Strong dressed-stone block contrast & deep cobalt mortar cavities so walls never look flat plastic white.
-        finished*=mix(.42,1.0,recess)*(.82+.22*sqrt(max(.0,value)));
-        diffuseColor.rgb=mix(diffuseColor.rgb,finished,.86);`
+        // True Linear-RGB AAA anime chiaroscuro: deep royal ultramarine-cobalt shadow flank
+        // vs crisp sunlit warm alabaster top deck, southeast faces & parapet rims!
+        float exposure=smoothstep(-.10,.28,stoneSun);
+        float topRim=smoothstep(.65,.95,stoneNormal.y);
+        exposure=max(exposure,topRim*.94);
+        float dressed=smoothstep(.035,.76,value);
+        float recess=smoothstep(.045,.32,value);
+        vec3 cobaltShadow=mix(vec3(.006,.018,.15),vec3(.024,.076,.45),dressed);
+        vec3 sunlitAlabaster=mix(vec3(.24,.30,.52),vec3(1.06,1.04,.98),dressed);
+        vec3 finished=mix(cobaltShadow,sunlitAlabaster,exposure);
+        finished*=mix(.42,1.0,recess)*(.85+.20*sqrt(max(.0,value)));
+        finished+=vec3(.09,.08,.05)*topRim*exposure*smoothstep(.50,.92,value);
+        diffuseColor.rgb=mix(diffuseColor.rgb,finished,.95);`
       );
     };
     material.customProgramCacheKey = () => key + '-dressed-limestone-3';

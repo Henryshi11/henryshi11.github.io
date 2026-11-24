@@ -57,9 +57,9 @@
     scene.background = new T.Color(0x5288e5);
     scene.fog = new T.Fog(0x7fb0ec, 820, 4600);
     const camera = new T.PerspectiveCamera(53, 1, .14, 9000);
-    scene.add(new T.HemisphereLight(0x96c2ff, 0x3b593c, 1.08));
-    const sun = new T.DirectionalLight(0xfff1cc, 3.35);
-    sun.position.set(135, 210, 170);
+    scene.add(new T.HemisphereLight(0x8bbaff, 0x26422c, 1.12));
+    const sun = new T.DirectionalLight(0xfff2d2, 3.85);
+    sun.position.set(155, 175, 158);
     scene.add(sun);
     const height=(x,z)=>{
       const h=RideTrails.rideHeight(x,z,RideLand.height);
@@ -94,6 +94,7 @@
         return;
       }
       skylineReady=true;
+      try{renderer.compile(scene,camera);}catch{}
       byId('start').textContent='开始骑行';byId('start').disabled=false;
       byId('map-intro').disabled=false;
       byId('atelier-intro').disabled=false;
@@ -149,11 +150,14 @@
     const lensVelocity={yaw:0,pitch:0,distance:0,ground:0,side:0,grade:0,roll:0};
     let fogPass=null, previousFrameReady=false;
     const riderTrackMask={value:1};
+    const worldSunDir=new T.Vector3(.55,.62,.56).normalize();
     if(renderer.capabilities.isWebGL2 && !reduced){
+      const hasFloatRT=renderer.extensions.has('EXT_color_buffer_float')||renderer.extensions.has('EXT_color_buffer_half_float');
       const rt=new T.WebGLRenderTarget(2,2,{
+        type:hasFloatRT?T.HalfFloatType:T.UnsignedByteType,
         minFilter:T.LinearFilter, magFilter:T.LinearFilter, depthBuffer:true, stencilBuffer:false
       });
-      rt.texture.colorSpace=T.SRGBColorSpace;
+      if(!hasFloatRT)rt.texture.colorSpace=T.SRGBColorSpace;
       rt.samples=Math.min(2,renderer.capabilities.maxSamples);
       rt.depthTexture=new T.DepthTexture(2,2,T.UnsignedIntType);
       // The render target's alpha stores the opaque rider silhouette when fogPass is active.
@@ -182,12 +186,15 @@
         picture:{value:rt.texture}, depthMap:{value:rt.depthTexture},
         shift:{value:new T.Vector4()},
         clip:{value:new T.Vector2(camera.near,camera.far)}, amount:{value:0},
-        focalPixels:{value:600},pixel:{value:new T.Vector2()}
+        focalPixels:{value:600},pixel:{value:new T.Vector2()},
+        sunScreen:{value:new T.Vector3(0,0,-1)},
+        hdrMode:{value:hasFloatRT?1:0}
       };
       const shader=new T.ShaderMaterial({uniforms,depthTest:false,depthWrite:false,toneMapped:false,
         vertexShader:'varying vec2 uv0;void main(){uv0=uv;gl_Position=vec4(position.xy,0.,1.);}',
         fragmentShader:`uniform sampler2D picture,depthMap;
-          uniform vec4 shift;uniform vec2 pixel,clip;uniform float amount,focalPixels;varying vec2 uv0;
+          uniform vec4 shift;uniform vec2 pixel,clip;uniform vec3 sunScreen;
+          uniform float amount,focalPixels,hdrMode;varying vec2 uv0;
           float viewDepth(float d){return clip.x*clip.y/(clip.y*(1.-d)+clip.x*d);}
           float contactTap(vec2 offset,float z,vec2 slope){
             vec2 uv=uv0+offset*pixel;
@@ -197,6 +204,10 @@
             float coverage=1.-smoothstep(.07,.67,texture2D(picture,uv).a);
             return smoothstep(.006,.061,contact)*nearSurface*coverage;
           }
+          vec3 extractBright(vec3 c){
+            float l=dot(c,vec3(.2126,.7152,.0722));
+            return c*smoothstep(.88,1.45,l)*.55;
+          }
           void main(){
             vec4 sample0=texture2D(picture,uv0);
             vec3 centre=sample0.rgb;
@@ -205,8 +216,6 @@
             float eyeDepth=viewDepth(d);
             vec2 slope=vec2(dFdx(eyeDepth),dFdy(eyeDepth));
             if(sample0.a<.22 && eyeDepth<14.){
-              // Compare with the receiver's tangent plane. A sloped sleeve
-              // cannot darken itself, and grass beyond the bicycle has no vote.
               float metrePerPixel=eyeDepth/focalPixels;
               float facing=1.-smoothstep(1.40,2.9,length(slope)/metrePerPixel);
               float radius=clamp(.077/metrePerPixel,2.3,20.);
@@ -216,7 +225,7 @@
                 +contactTap(b,eyeDepth,slope)+contactTap(-b,eyeDepth,slope)
                 +contactTap(c,eyeDepth,slope)+contactTap(-c,eyeDepth,slope)
                 +contactTap(e,eyeDepth,slope)+contactTap(-e,eyeDepth,slope);
-              result*=1.-.091*obscured*facing*(1.-smoothstep(.025,.22,sample0.a));
+              result*=1.-.095*obscured*facing*(1.-smoothstep(.025,.22,sample0.a));
             }
             if(amount>.001 && eyeDepth<70. && sample0.a>.04){
               vec2 ndc=uv0*2.-1.;
@@ -244,8 +253,35 @@
                 result=mix(centre,integrated/total,mix(.58,.86,periphery)*sample0.a*smoothstep(1.15,3.6,span));
               }
             }
-            gl_FragColor=vec4(result,1.);
-            #include <colorspace_fragment>
+            // Tight, silky 2-ring Gaussian halation bloom (zero spire ghosting!)
+            vec3 bloom=vec3(0.);
+            float bScale=1./max(720.*pixel.y,.5);
+            for(int k=0;k<8;k++){
+              float a1=float(k)*.785398;
+              float a2=a1+.392699;
+              vec2 d1=vec2(cos(a1),sin(a1))*2.2*bScale*pixel;
+              vec2 d2=vec2(cos(a2),sin(a2))*5.4*bScale*pixel;
+              bloom+=extractBright(texture2D(picture,clamp(uv0+d1,pixel,vec2(1.)-pixel)).rgb)*.085;
+              bloom+=extractBright(texture2D(picture,clamp(uv0+d2,pixel,vec2(1.)-pixel)).rgb)*.045;
+            }
+            result+=bloom*vec3(1.03,.99,.92)*.42;
+            // Subtle directional Southeast solar atmospheric warmth when facing the sun
+            if(sunScreen.z>0.){
+              vec2 aspect=vec2(pixel.y/max(pixel.x,1.e-5),1.);
+              float sunDist=length((uv0-sunScreen.xy)*aspect);
+              float sunVeil=exp(-sunDist*2.4)*sunScreen.z;
+              result+=vec3(.14,.11,.06)*sunVeil*.28;
+            }
+            // True Shadow-Deepening Cinema Contrast Curve (no midtone washout!)
+            if(hdrMode>.5){
+              vec3 x=max(vec3(0.),result);
+              x=pow(x,vec3(1.09));
+              result=x/(1.+.22*max(vec3(0.),x-.62));
+              gl_FragColor=vec4(result,1.);
+              #include <colorspace_fragment>
+            }else{
+              gl_FragColor=vec4(clamp(result,0.,1.),1.);
+            }
           }`});
       const screen=new T.Scene();
       screen.add(new T.Mesh(new T.PlaneGeometry(2,2),shader));
@@ -291,6 +327,11 @@
       u.shift.value.set((fx*state.speed-boomZ*state.yawRate)*exposure,
         state.verticalSpeed*exposure,(fz*state.speed+boomX*state.yawRate)*exposure,0).applyMatrix4(p.vp);
       u.amount.value=previousFrameReady&&state.mode==='ride'?T.MathUtils.smoothstep(state.speed,1.2,10.5):0;
+      // Project Southeast world sun into screen space for directional atmospheric solar glare
+      temp.copy(camera.position).addScaledVector(worldSunDir,1000).project(camera);
+      const camFwd=ahead.set(0,0,-1).applyQuaternion(camera.quaternion);
+      const sunFacing=Math.max(0,camFwd.dot(worldSunDir));
+      u.sunScreen.value.set(temp.x*.5+.5,temp.y*.5+.5,sunFacing*sunFacing);
       renderer.setRenderTarget(p.rt);renderer.render(scene,camera);
       sceneDraws=renderer.info.render.calls;sceneTriangles=renderer.info.render.triangles;
       renderer.setRenderTarget(null);renderer.render(p.screen,p.screenCamera);
@@ -419,21 +460,21 @@
       const surfaceDrag=(state.deckId ? .042 : lerp(.068,rolling,surface.weight)+.02*breeze.wetness)+waterSplashDrag;
       const resistance=(state.airborne?0:surfaceDrag)+airDrag;
       // Uphill is softened so climbing feels effortless; downhill carries exhilarating momentum.
-      const gravity=state.airborne?0:(state.grade>0?6.2:9.6)*state.grade/slopeLength;
+      const gravity=state.airborne?0:(state.grade>0?5.8:13.2)*state.grade/slopeLength;
       const climbing=T.MathUtils.smoothstep(state.grade,.06,.145);
       const levelEffort=state.drive?clamp(.62+(cruiseSpeed-state.speed)*.03,.50,.94):0;
       const climbEffort=clamp((gravity+resistance+.75*(cruiseSpeed-state.speed))/6.6,.18,1);
       const cruiseEffort=(1-descending)*lerp(levelEffort,climbEffort,climbing);
-      const paceSpeed=sprint?21.5:state.paceTarget;
+      const paceSpeed=sprint?22.5:state.paceTarget;
       const paceEffort=clamp((.85*(paceSpeed-state.speed)+resistance+gravity)/6.6,0,sprint?1:.88);
-      const targetEffort=brake||state.airborne?0:(throttle||sprint)?(sprint?1.22:1):state.guided?cruiseEffort:state.pace?paceEffort:0;
-      state.effort=damp(state.effort,targetEffort,targetEffort>state.effort?6.8:7.5,dt);
+      const targetEffort=brake||state.airborne?0:(throttle||sprint)?(sprint?1.24:1):state.guided?cruiseEffort:state.pace?paceEffort:0;
+      state.effort=damp(state.effort,targetEffort,targetEffort>state.effort?7.2:7.8,dt);
       if(state.effort<.003)state.effort=0;
-      const maxPowerSpeed=sprint?39:33;
-      const drive=state.effort*6.6*(1-T.MathUtils.smoothstep(state.speed,maxPowerSpeed-11,maxPowerSpeed));
+      const maxPowerSpeed=sprint?40:34;
+      const drive=state.effort*6.8*(1-T.MathUtils.smoothstep(state.speed,maxPowerSpeed-11,maxPowerSpeed));
       const acceleration=(state.airborne?0:drive)-resistance-gravity-(brake&&!state.airborne?8.5+.12*state.speed:0);
       const previousSpeed=state.speed;
-      state.speed=clamp(state.speed+acceleration*dt,0,38);
+      state.speed=clamp(state.speed+acceleration*dt,0,44);
       if(brake&&!state.airborne&&state.speed<.09&&!state.parked){
         state.parked=true;
         if(state.guided)setGuided(false);
@@ -441,10 +482,24 @@
       }
       if(state.parked)state.speed=0;
       state.acceleration=damp(state.acceleration,(state.speed-previousSpeed)/dt,7.5,dt);
-      // Responsive carving at all speeds so sweeping S-turns across the meadow feel fluid.
-      const rollingYaw=Math.min(1.62,12.2/Math.max(state.speed,2.4))*T.MathUtils.smoothstep(state.speed,0,.62);
-      const maxYaw=state.atBarrier&&turn?Math.max(.95,rollingYaw):rollingYaw;
-      state.handle=damp(state.handle,turn,turn?10.5:12.5,dt);
+      // Progressive 2-stage carving + gentle camera-guided flow when riding straight!
+      steerHold=turn?(Math.sign(turn)===lastTurnSign?Math.min(1,steerHold+dt*4.6):.15):Math.max(0,steerHold-dt*9.0);
+      if(turn)lastTurnSign=Math.sign(turn);
+      const progressiveTurn=turn*(.56+.44*steerHold*steerHold);
+      let flowSteer=0;
+      if(!turn && !state.guided && !drag && !view.pointerLook && !view.locked && (throttle||sprint) && state.speed>2.5){
+        const activePreset=cameraPresets[view.base-1]||wideLens;
+        const viewDiff=angleDelta(activePreset.az-view.targetAz);
+        if(Math.abs(viewDiff)>.06 && Math.abs(viewDiff)<1.45){
+          flowSteer=clamp(viewDiff*.38,-.42,.42);
+          view.targetAz=angleDelta(view.targetAz+viewDiff*(1-Math.exp(-dt*.95)));
+        }
+      }
+      const desiredInput=turn?progressiveTurn:flowSteer;
+      const rollingYaw=Math.min(1.65,12.6/Math.max(state.speed,2.4))*T.MathUtils.smoothstep(state.speed,0,.58);
+      const maxYaw=state.atBarrier&&turn?Math.max(.98,rollingYaw):rollingYaw;
+      const counterSteer=turn && state.handle*turn<0;
+      state.handle=damp(state.handle,desiredInput,counterSteer?16.5:turn?9.2:13.5,dt);
       let targetYaw=state.handle*maxYaw;
       const groundStep=state.speed*dt,step=groundStep/slopeLength;
       if(state.guided){
@@ -521,11 +576,12 @@
     }
     function cameraPose(dt,snap=false){
       const activePreset=cameraPresets[view.base-1]||wideLens;
-      // Gently drift back toward the preset angle after releasing mouse drag while riding,
-      // unless the player locked a custom cinematic angle (L) or is using Pointer Lock.
-      if(!snap && !drag && !view.locked && !view.pointerLook && state.mode==='ride' && state.speed>2.5 && state.time-view.lastLookAt>3.0){
-        view.targetAz+=angleDelta(activePreset.az-view.targetAz)*(1-Math.exp(-dt*.85));
-        view.targetPitch=damp(view.targetPitch,activePreset.pitch,.75,dt);
+      // Only gently drift back when actively steering (after 2.8s) or after a generous 8.5s sightseeing grace!
+      const activelyTurning=held.has('KeyA')||held.has('KeyD')||held.has('ArrowLeft')||held.has('ArrowRight');
+      const recenterWait=activelyTurning?2.6:8.5;
+      if(!snap && !drag && !view.locked && !view.pointerLook && state.mode==='ride' && state.speed>2.5 && state.time-view.lastLookAt>recenterWait){
+        view.targetAz+=angleDelta(activePreset.az-view.targetAz)*(1-Math.exp(-dt*(activelyTurning?1.15:.55)));
+        view.targetPitch=damp(view.targetPitch,activePreset.pitch,.65,dt);
       }
       const effectiveDistance=view.targetDistance;
       const az=view.targetAz;
@@ -845,6 +901,8 @@
     if(coarse)byId('hint').textContent='滑动画面环视　·　镜位按钮切换远近';
     let sceneDraws=0,sceneTriangles=0;
     let perfAvgDt=1/60,perfSampleTime=0,perfCooldown=0;
+    let steerHold=0,lastTurnSign=0,physAcc=0,riderSunVis=1;
+    const FIXED_DT=1/120;
     state.y=height(0,0);cameraPose(0,true);
     rider.root.position.set(0,state.y,0);land.update(0,0,0,0);rider.update(0,0,0,0);
     const draw=now=>{
@@ -875,12 +933,21 @@
         }
       }
       if(active){
-        const steps=Math.ceil(dt*90);
-        for(let i=0;i<steps;i++)move(dt/steps);
-        state.time+=dt;
+        physAcc=Math.min(.10,physAcc+dt);
+        while(physAcc>=FIXED_DT){
+          move(FIXED_DT);
+          state.time+=FIXED_DT;
+          physAcc-=FIXED_DT;
+        }
       }
       if(state.mode!=='pause')foliageTime.value+=dt;
       const w=weather.update(state.x,state.z,state.time,camera,{speed:state.speed,heading:state.heading,axles:state.airborne?null:rider.axles});
+      // Dynamically plunge rider & silk cape into cool cobalt shade inside Great Wall / cumulus shadows,
+      // then ignite blazing golden-white rim-light & silk translucency when riding back into sunlight!
+      const wallShade=state.deckId?0:(RideLand.monumentShadowAt?RideLand.monumentShadowAt(state.x,state.z):0);
+      const targetSunVis=1-.86*Math.max(w.cloudShade||0,wallShade);
+      riderSunVis=damp(riderSunVis,targetSunVis,7.2,dt);
+      rider.setSunVisibility?.(riderSunVis);
       rider.root.position.set(state.x,state.y,state.z);
       rider.root.rotation.order='YXZ';rider.root.rotation.y=-state.heading;rider.root.rotation.x=state.pitch;
       dynamics.effort=state.effort;dynamics.grade=state.grade;dynamics.acceleration=state.acceleration;
