@@ -108,6 +108,11 @@
       }
       const pin=bandPoint(-1.38,.55);
       parts.ball(pin,V(.004,.009,.008),0xdcb56d,[.2,0,-.15]);
+      // Tailored grosgrain bow knot at the back of the hatband where the twin wind ribbons emerge
+      for(const s of [-1,1]){
+        parts.ball(V(s*.017,1.749,-.004),V(.013,.0075,.006),0x9b3e2c,[0,s*.25,s*.18]);
+      }
+      parts.ball(V(0,1.748,-.003),V(.007,.007,.006),0xc78352);
     }
     return characters.map((c,index)=>{
       const hair=batch(),outfit=batch(),jewels=batch();
@@ -136,8 +141,12 @@
         }
         travelHat(hair);
         outfit.cable([V(-.114,1.465,-.146),V(-.064,1.375,-.125),V(.032,1.267,-.005),V(.111,1.138,.105)],.014,0x814e36);
+        // Brass strap buckle + map scroll tube + brass compass charm on Iris's satchel
+        outfit.ring(V(-.022,1.325,-.072),.015,.0032,0xe2b665,16,[.65,-.45,.3]);
         outfit.ball(V(.138,1.105,.169),V(.042,.061,.069),0x915b3d,[.25,0,.15]);
         outfit.ball(V(.165,1.12,.160),V(.017,.035,.061),0xb98457);
+        outfit.ball(V(.178,1.102,.158),V(.005,.009,.008),0xe6be6e);
+        outfit.rod(V(.125,1.168,.118),V(.155,1.160,.222),.013,0xf2e3be);
       }else if(c.id==="ren"){
         // A deliberately asymmetric, cropped silhouette with long side-swept bangs.
         for(let k=0;k<5;k++){
@@ -213,6 +222,11 @@
       const frame=batch(),fork=batch(),c=spec[i],isRoad=i===0,isStep=i===1;
       const end=V(0,.981,.278),top=headTop,down=headBase;
       frame.rod(seatTube,end,.0165,alloy);
+      // Polished seatpost collar clamp + brass head-tube crest badge & artisan lug rings
+      frame.ring(seatTube.clone().add(at(0,.012,0)),isRoad?.022:.028,.0045,alloy,20,[Math.PI/2,0,0]);
+      frame.ball(down.clone().lerp(top,.52).add(at(0,0,-.028)),V(.009,.022,.006),0xe0b465);
+      frame.rod(top.clone().add(at(0,-.018,0)),top.clone().add(at(0,.004,0)),isRoad?.0285:.0345,alloy);
+      frame.rod(down.clone().add(at(0,-.004,0)),down.clone().add(at(0,.018,0)),isRoad?.0285:.0345,alloy);
       frame.rod(crank,seatTube,isRoad?.020:.026,c.tube);
       frame.rod(down,top,isRoad?.026:.032,c.trim);
       if(isStep){
@@ -226,6 +240,18 @@
         const tubeTop=isRoad?seatTube:at(0,.760,.204);
         frame.rod(tubeTop,top,isRoad?.018:.023,c.tube);frame.rod(down,crank,isRoad?.023:.031,c.tube);
         for(const t of [.24,.28,.32])frame.rod(down.clone().lerp(crank,t),down.clone().lerp(crank,t+.013),isRoad?.0235:.0315,c.trim);
+        // Classic alloy down-tube bottle cage + cream-and-cobalt cycling bidon (water bottle)
+        const bStart=down.clone().lerp(crank,.58).add(at(0,.042,.018));
+        const bEnd=down.clone().lerp(crank,.37).add(at(0,.046,.012));
+        frame.rod(bStart,bEnd,.031,0xf4ebd2);
+        frame.rod(bEnd,bEnd.clone().lerp(bStart,-.15),.024,c.tube);
+        frame.ball(bEnd.clone().lerp(bStart,-.22),V(.011,.011,.011),bronze);
+        for(const s of [-1,1])frame.cable([bStart.clone().add(at(0,-.016,0)),bStart.clone().lerp(bEnd,.5).add(at(s*.034,.005,0)),bEnd.clone().add(at(0,-.014,0))],.0028,alloy);
+        // Rear dual-pivot caliper brake bridge & Bowden cable along top tube
+        const rearBridge=seatTube.clone().lerp(at(0,.36,.55),.30);
+        frame.rod(at(-.032,rearBridge.y,rearBridge.z),at(.032,rearBridge.y,rearBridge.z),.006,alloy);
+        for(const s of [-1,1])frame.rod(at(s*.024,rearBridge.y,rearBridge.z),at(s*.021,rearBridge.y-.032,rearBridge.z+.012),.0045,dark);
+        frame.cable([top.clone().add(at(.014,-.014,.04)),tubeTop.clone().add(at(.014,-.012,-.04)),rearBridge.clone().add(at(.018,.025,-.02)),rearBridge.clone().add(at(.022,.004,0))],.0024,dark);
         if(!isRoad){
           // A stitched triangular half-frame bag leaves the bottle and crank clear below.
           const outline=[[.20,.761],[-.316,.838],[-.288,.752],[-.044,.584],[.112,.616]];
@@ -248,6 +274,9 @@
         frame.rod(drop,crank.clone().add(at(s*.041,0,0)),isRoad?.012:.016,c.trim);
         frame.rod(drop,seatTube.clone().add(at(s*.023,0,0)),isRoad?.011:.014,c.tube);
         fork.cable([down,at(s*.047,.653,-.432),at(s*.064,.437,-.528),at(s*.069,.36,-.56)],isRoad?.0135:isStep?.016:.020,c.tube);
+        // Front brake caliper arms & brake pads at fork crown
+        fork.rod(at(0,.688,-.426),at(s*.025,.666,-.438),.0052,alloy);
+        fork.rod(at(s*.022,.658,-.434),at(s*.020,.644,-.442),.0045,dark);
       }
       const lift=c.grip[1],back=c.grip[2],width=c.grip[0];
       const stem=at(0,1.001+lift,-.479+back*.35);

@@ -125,6 +125,14 @@
     const view = {targetAz:wideLens.az,targetPitch:wideLens.pitch,targetDistance:wideLens.distance,base:1,
       locked:false,lastLookAt:-10,pointerLook:false};
     const held = new Set();
+    const joy={active:false,id:null,originX:0,originY:0,dx:0,dy:0,mag:0,angle:0,camRef:0,used:false};
+    const gearModes=[
+      {id:'normal',label:'速度·标准',scale:1.0},
+      {id:'fast',label:'速度·疾风',scale:1.30},
+      {id:'slow',label:'速度·悠闲',scale:0.66}
+    ];
+    let gearIndex=0,pinchDist=0;
+    const camPointers=new Map();
     const routes=new Map();
     const stoneBridge=RideWhiteBridge;
     const rider=RideRider.create(T,wheelHeight);
@@ -204,13 +212,21 @@
             float coverage=1.-smoothstep(.07,.67,texture2D(picture,uv).a);
             return smoothstep(.006,.061,contact)*nearSurface*coverage;
           }
+          vec3 safeHdr(vec3 c){
+            return vec3(
+              (c.r>=0. && c.r<16.)?c.r:0.,
+              (c.g>=0. && c.g<16.)?c.g:0.,
+              (c.b>=0. && c.b<16.)?c.b:0.
+            );
+          }
           vec3 extractBright(vec3 c){
-            float l=dot(c,vec3(.2126,.7152,.0722));
-            return c*smoothstep(.88,1.45,l)*.55;
+            vec3 s=safeHdr(c);
+            float l=dot(s,vec3(.2126,.7152,.0722));
+            return s*smoothstep(.88,1.45,l)*.55;
           }
           void main(){
             vec4 sample0=texture2D(picture,uv0);
-            vec3 centre=sample0.rgb;
+            vec3 centre=safeHdr(sample0.rgb);
             vec3 result=centre;
             float d=texture2D(depthMap,uv0).r;
             float eyeDepth=viewDepth(d);
@@ -247,7 +263,7 @@
                   float discontinuity=abs(sd-d)/max(.00015,1.-d);
                   vec4 tap=texture2D(picture,sampleUV);
                   float weight=(1.-.60*abs(offset))*(1.-smoothstep(.10,.36,discontinuity))*tap.a;
-                  integrated+=tap.rgb*weight;
+                  integrated+=safeHdr(tap.rgb)*weight;
                   total+=weight;
                 }
                 result=mix(centre,integrated/total,mix(.58,.86,periphery)*sample0.a*smoothstep(1.15,3.6,span));
@@ -356,7 +372,8 @@
       return height(x,z);
     }
     function receivingHeight(x,z){
-      const floor=height(x,z),top=stoneBridge.deckAt(x,z);
+      const wd=!state.deckId?RideWorld.waterDepth(x,z):0;
+      const floor=wd>.015?RideWorld.river(z).y+.024:height(x,z),top=stoneBridge.deckAt(x,z);
       const sameDeck=state.deckId && state.deckId===stoneBridge.surfaceId(x,z);
       return top!=null&&(sameDeck||top<=state.y+.48)?Math.max(floor,top):floor;
     }
@@ -404,6 +421,7 @@
     }
     function togglePace(){
       if(state.mode==='intro')mode('ride');
+      joy.used=false;
       setPace(!state.pace);
       tell(state.pace?'自由漫骑　·　自己选方向，刹车可停':'已松开踏板');
     }
@@ -429,20 +447,23 @@
       canvas.focus({preventScroll:true});
     }
     function move(dt){
+      const joyActive=joy.active&&joy.mag>.08;
+      const isJoySprint=joyActive&&(joy.mag>=.84||(gearIndex===1&&joy.mag>=.70));
       const throttle=held.has('KeyW')||held.has('ArrowUp');
       const brake=held.has('KeyS')||held.has('ArrowDown');
-      const sprint=held.has('ShiftLeft')||held.has('ShiftRight');
+      const sprint=held.has('ShiftLeft')||held.has('ShiftRight')||isJoySprint;
       state.sprint=sprint;
-      if(throttle&&!brake)state.parked=false;
+      if((throttle||joyActive)&&!brake)state.parked=false;
       if(state.pace&&(brake||state.atBarrier))setPace(false);
       const turn=Number(held.has('KeyD')||held.has('ArrowRight'))-Number(held.has('KeyA')||held.has('ArrowLeft'));
-      if(turn&&state.guided){setGuided(false);tell('自由骑行　·　C 恢复巡游');}
+      if((turn||joyActive)&&state.guided){setGuided(false);if(turn)tell('自由骑行　·　C 恢复巡游');}
       const fx=Math.sin(state.heading)*.60,fz=-Math.cos(state.heading)*.60;
       const uphill=state.airborne?0:(wheelHeight(state.x+fx,state.z+fz)-wheelHeight(state.x-fx,state.z-fz))/1.2;
       state.grade=damp(state.grade,uphill,8,dt);
-      state.throttle=throttle;
+      state.throttle=throttle||joyActive;
       state.coastHold=0;
-      const cruiseSpeed=clamp(19.5-state.grade*14-Math.abs(state.steer)*3.2,13.5,24.5);
+      const gearScale=gearModes[gearIndex].scale;
+      const cruiseSpeed=clamp(19.5-state.grade*14-Math.abs(state.steer)*3.2,13.5,24.5)*gearScale;
       if(state.speed>cruiseSpeed+1.2)state.drive=false;
       if(state.speed<cruiseSpeed-1.45)state.drive=true;
       const descending=T.MathUtils.smoothstep(-state.grade,.065,.15)*T.MathUtils.smoothstep(state.speed,5,11);
@@ -465,12 +486,15 @@
       const levelEffort=state.drive?clamp(.62+(cruiseSpeed-state.speed)*.03,.50,.94):0;
       const climbEffort=clamp((gravity+resistance+.75*(cruiseSpeed-state.speed))/6.6,.18,1);
       const cruiseEffort=(1-descending)*lerp(levelEffort,climbEffort,climbing);
-      const paceSpeed=sprint?22.5:state.paceTarget;
+      const paceSpeed=(sprint?22.5:state.paceTarget)*gearScale;
       const paceEffort=clamp((.85*(paceSpeed-state.speed)+resistance+gravity)/6.6,0,sprint?1:.88);
-      const targetEffort=brake||state.airborne?0:(throttle||sprint)?(sprint?1.24:1):state.guided?cruiseEffort:state.pace?paceEffort:0;
+      const normPull=clamp((joy.mag-.08)/.76,0,1);
+      const joyTargetSpeed=(isJoySprint?lerp(21.5,33.5,clamp((joy.mag-.84)/.16,0,1)):lerp(3.4,18.2,Math.pow(normPull,1.12)))*gearScale;
+      const joyEffort=clamp((1.18*(joyTargetSpeed-state.speed)+resistance+gravity)/6.8,0,isJoySprint?1.24:1.02);
+      const targetEffort=brake||state.airborne?0:joyActive?joyEffort:(throttle||sprint)?(sprint?1.24:1):state.guided?cruiseEffort:(state.pace&&!joy.used)?paceEffort:0;
       state.effort=damp(state.effort,targetEffort,targetEffort>state.effort?7.2:7.8,dt);
       if(state.effort<.003)state.effort=0;
-      const maxPowerSpeed=sprint?40:34;
+      const maxPowerSpeed=(sprint?40:34)*Math.max(1,gearScale*.95);
       const drive=state.effort*6.8*(1-T.MathUtils.smoothstep(state.speed,maxPowerSpeed-11,maxPowerSpeed));
       const acceleration=(state.airborne?0:drive)-resistance-gravity-(brake&&!state.airborne?8.5+.12*state.speed:0);
       const previousSpeed=state.speed;
@@ -478,16 +502,28 @@
       if(brake&&!state.airborne&&state.speed<.09&&!state.parked){
         state.parked=true;
         if(state.guided)setGuided(false);
-        tell('已停稳　·　按 W 踩踏继续');
+        tell(joy.used?'已停稳　·　推动轮盘继续骑行':'已停稳　·　按 W 踩踏继续');
       }
       if(state.parked)state.speed=0;
       state.acceleration=damp(state.acceleration,(state.speed-previousSpeed)/dt,7.5,dt);
-      // Progressive 2-stage carving + gentle camera-guided flow when riding straight!
+      // Progressive 2-stage carving + Honor of Kings 360° camera-relative joystick + gentle camera-guided flow!
       steerHold=turn?(Math.sign(turn)===lastTurnSign?Math.min(1,steerHold+dt*4.6):.15):Math.max(0,steerHold-dt*9.0);
       if(turn)lastTurnSign=Math.sign(turn);
       const progressiveTurn=turn*(.56+.44*steerHold*steerHold);
+      let joySteer=0;
+      if(joyActive){
+        if(Math.abs(joy.angle)<.30 && camPointers.size===0){
+          joy.camRef+=angleDelta(state.heading-joy.camRef)*(1-Math.exp(-dt*1.4));
+        }
+        const wantedHeading=joy.camRef+joy.angle;
+        const headingErr=angleDelta(wantedHeading-state.heading);
+        joySteer=clamp(headingErr*1.45,-1,1);
+        if(Math.abs(joy.angle)>=.30 && camPointers.size===0){
+          view.targetAz=angleDelta(view.targetAz+state.yawRate*dt*.92);
+        }
+      }
       let flowSteer=0;
-      if(!turn && !state.guided && !drag && !view.pointerLook && !view.locked && (throttle||sprint) && state.speed>2.5){
+      if(!joyActive && !turn && !state.guided && !drag && camPointers.size===0 && !view.pointerLook && !view.locked && (throttle||sprint) && state.speed>2.5){
         const activePreset=cameraPresets[view.base-1]||wideLens;
         const viewDiff=angleDelta(activePreset.az-view.targetAz);
         if(Math.abs(viewDiff)>.06 && Math.abs(viewDiff)<1.45){
@@ -495,7 +531,7 @@
           view.targetAz=angleDelta(view.targetAz+viewDiff*(1-Math.exp(-dt*.95)));
         }
       }
-      const desiredInput=turn?progressiveTurn:flowSteer;
+      const desiredInput=joyActive?joySteer:turn?progressiveTurn:flowSteer;
       const rollingYaw=Math.min(1.65,12.6/Math.max(state.speed,2.4))*T.MathUtils.smoothstep(state.speed,0,.58);
       const maxYaw=state.atBarrier&&turn?Math.max(.98,rollingYaw):rollingYaw;
       const counterSteer=turn && state.handle*turn<0;
@@ -579,7 +615,7 @@
       // Only gently drift back when actively steering (after 2.8s) or after a generous 8.5s sightseeing grace!
       const activelyTurning=held.has('KeyA')||held.has('KeyD')||held.has('ArrowLeft')||held.has('ArrowRight');
       const recenterWait=activelyTurning?2.6:8.5;
-      if(!snap && !drag && !view.locked && !view.pointerLook && state.mode==='ride' && state.speed>2.5 && state.time-view.lastLookAt>recenterWait){
+      if(!snap && !drag && camPointers.size===0 && !joy.active && !view.locked && !view.pointerLook && state.mode==='ride' && state.speed>2.5 && state.time-view.lastLookAt>recenterWait){
         view.targetAz+=angleDelta(activePreset.az-view.targetAz)*(1-Math.exp(-dt*(activelyTurning?1.15:.55)));
         view.targetPitch=damp(view.targetPitch,activePreset.pitch,.65,dt);
       }
@@ -594,8 +630,9 @@
         for(const key in lensVelocity)lensVelocity[key]=0;
         chaseHeading=state.heading;cameraHeight=state.y;cameraRoll=cameraGrade=chaseLateral=fallLook=0;deckCameraLift=0;boomLimit=1;
       }else{
-        changeYaw=spring(changeYaw,changeYaw+angleDelta(az-changeYaw),'yaw',(drag||view.pointerLook)?26:12,dt);
-        changePitch=spring(changePitch,pitch,'pitch',(drag||view.pointerLook)?26:14,dt);
+        const directLook=Boolean(drag||camPointers.size>0||view.pointerLook);
+        changeYaw=spring(changeYaw,changeYaw+angleDelta(az-changeYaw),'yaw',directLook?26:12,dt);
+        changePitch=spring(changePitch,pitch,'pitch',directLook?26:14,dt);
         changeDist=spring(changeDist,effectiveDistance+pull,'distance',10,dt);
         chaseHeading+=angleDelta(state.heading-chaseHeading)*(1-Math.exp(-dt*5.8));
         const probe=2.8+.15*state.speed;
@@ -697,11 +734,18 @@
     function help(open){
       card.hidden=!open;byId('help').setAttribute('aria-expanded',String(open));showUI();
     }
+    const joyZone=byId('joy-zone'),joyBase=byId('joy-base'),joyKnob=byId('joy-knob'),gearBtn=byId('touch-gear');
+    function resetJoy(){
+      joy.active=false;joy.id=null;joy.dx=joy.dy=joy.mag=0;
+      if(joyZone){joyZone.classList.remove('active','sprint');}
+      if(joyBase){joyBase.style.left='50%';joyBase.style.top='50%';}
+      if(joyKnob){joyKnob.style.setProperty('--jx','0px');joyKnob.style.setProperty('--jy','0px');}
+    }
     function mode(next){
       if(next==='ride'&&state.mode==='intro'&&state.travel===0){
         state.speed=5.4;state.drive=true;state.effort=.32;
       }
-      state.mode=next;document.body.dataset.mode=next;held.clear();drag=null;updateFork();
+      state.mode=next;document.body.dataset.mode=next;held.clear();drag=null;camPointers.clear();resetJoy();updateFork();
       byId('pause').textContent=next==='ride'?'Ⅱ':'▷';byId('pause').setAttribute('aria-label',next==='ride'?'暂停':'继续');
       if(next==='ride'){audio.setEnabled(state.sound);canvas.focus({preventScroll:true});showUI();}
       else{byId('start').textContent=next==='intro'?'开始骑行':'继续骑行';byId('where').textContent=next==='intro'?'白城草原 · 向阳草甸':'途中小憩';}
@@ -820,6 +864,65 @@
     forkButton.onclick=switchAtFork;
     byId('world-map').addEventListener('cancel',e=>{e.preventDefault();closeMap();});
     byId('touch-camera').onclick=()=>preset((view.base%cameraPresets.length)+1);
+    if(gearBtn){
+      gearBtn.onclick=()=>{
+        gearIndex=(gearIndex+1)%gearModes.length;
+        const g=gearModes[gearIndex];
+        gearBtn.textContent=g.label;
+        gearBtn.dataset.gear=g.id;
+        tell('骑行档位 · '+g.label.replace('速度·','')+(g.id==='fast'?'（轮盘拉满极速冲刺）':g.id==='slow'?'（舒缓观景）':'（随轮盘幅度快慢自如）'));
+        showUI();
+      };
+    }
+    if(coarse)document.body.classList.add('touch-device');
+    window.addEventListener('pointerdown',e=>{
+      if(e.pointerType==='touch')document.body.classList.add('touch-device');
+    },{passive:true});
+    if(joyZone){
+      const maxR=44;
+      const updateStick=(clientX,clientY)=>{
+        const dx=clientX-joy.originX,dy=clientY-joy.originY;
+        const dist=Math.hypot(dx,dy);
+        const clamped=Math.min(maxR,dist);
+        const ux=dist>.001?dx/dist:0,uy=dist>.001?dy/dist:0;
+        joy.dx=ux*clamped;joy.dy=uy*clamped;
+        joy.mag=clamp(dist/maxR,0,1);
+        if(dist>3)joy.angle=Math.atan2(dx,-dy);
+        if(joyKnob){
+          joyKnob.style.setProperty('--jx',joy.dx.toFixed(1)+'px');
+          joyKnob.style.setProperty('--jy',joy.dy.toFixed(1)+'px');
+        }
+        const sprintingNow=joy.mag>=.84||(gearIndex===1&&joy.mag>=.70);
+        joyZone.classList.toggle('sprint',sprintingNow);
+      };
+      joyZone.addEventListener('pointerdown',e=>{
+        e.preventDefault();e.stopPropagation();
+        if(joy.active)return;
+        if(state.mode==='intro')mode('ride');
+        joyZone.setPointerCapture(e.pointerId);
+        const rect=joyZone.getBoundingClientRect();
+        const pad=54;
+        const localX=clamp(e.clientX-rect.left,pad,Math.max(pad,rect.width-pad));
+        const localY=clamp(e.clientY-rect.top,pad,Math.max(pad,rect.height-pad));
+        if(joyBase){joyBase.style.left=localX+'px';joyBase.style.top=localY+'px';}
+        joy.active=true;joy.id=e.pointerId;joy.used=true;
+        joy.originX=rect.left+localX;joy.originY=rect.top+localY;
+        joy.camRef=chaseHeading-changeYaw;
+        joyZone.classList.add('active');
+        updateStick(e.clientX,e.clientY);
+        showUI();
+      });
+      joyZone.addEventListener('pointermove',e=>{
+        if(!joy.active||e.pointerId!==joy.id)return;
+        e.preventDefault();
+        updateStick(e.clientX,e.clientY);
+      });
+      for(const type of ['pointerup','pointercancel','lostpointercapture']){
+        joyZone.addEventListener(type,e=>{
+          if(joy.active&&e.pointerId===joy.id)resetJoy();
+        });
+      }
+    }
     function togglePointerLook(){
       if(document.pointerLockElement===canvas){document.exitPointerLock?.();return;}
       canvas.requestPointerLock?.();
@@ -855,50 +958,75 @@
       if(e.code==='KeyC')toggleGuide();if(e.code==='KeyR')reset();if(e.code==='KeyM')toggleSound();
     });
     window.addEventListener('keyup',e=>{if(e.code==='KeyQ')previousFrameReady=false;held.delete(e.code);});
-    window.addEventListener('blur',()=>{held.clear();drag=null;});
+    window.addEventListener('blur',()=>{held.clear();drag=null;camPointers.clear();resetJoy();});
     document.addEventListener('visibilitychange',()=>{if(document.hidden&&state.mode==='ride')mode('pause');});
     document.querySelectorAll('[data-key]').forEach(b=>{
-      b.addEventListener('pointerdown',e=>{b.setPointerCapture(e.pointerId);held.add(b.dataset.key);if(b.dataset.key==='KeyQ')previousFrameReady=false;});
+      b.addEventListener('pointerdown',e=>{e.stopPropagation();b.setPointerCapture(e.pointerId);held.add(b.dataset.key);if(b.dataset.key==='KeyQ')previousFrameReady=false;});
       for(const type of ['pointerup','pointercancel','lostpointercapture']) b.addEventListener(type,()=>{held.delete(b.dataset.key);if(b.dataset.key==='KeyQ')previousFrameReady=false;});
     });
     canvas.addEventListener('pointerdown',e=>{
-      if(outfitter.visible||drag)return;
+      if(outfitter.visible)return;
       if(e.button===1){e.preventDefault();if(state.mode==='ride')togglePointerLook();return;}
-      if(e.button>0)return;
-      canvas.setPointerCapture(e.pointerId);drag={id:e.pointerId,x:e.clientX,y:e.clientY,travel:0};
+      if(e.pointerType==='mouse'&&e.button>0)return;
+      if(camPointers.size>=2)return;
+      try{canvas.setPointerCapture(e.pointerId);}catch{}
+      camPointers.set(e.pointerId,{x:e.clientX,y:e.clientY,travel:0});
+      if(camPointers.size===2){
+        const pts=[...camPointers.values()];
+        pinchDist=Math.hypot(pts[0].x-pts[1].x,pts[0].y-pts[1].y);
+      }else{
+        drag=camPointers.get(e.pointerId);
+      }
     });
     canvas.addEventListener('pointermove',e=>{
       if(outfitter.visible)return;
       if(view.pointerLook){
         view.targetAz=angleDelta(view.targetAz-e.movementX*look.yawPerPixel*.85);
         view.targetPitch=clamp(view.targetPitch-e.movementY*look.pitchPerPixel*.85,look.minPitch,look.maxPitch);
+        if(joy.active)joy.camRef=chaseHeading-view.targetAz;
         view.lastLookAt=state.time;
         return;
       }
-      if(drag&&drag.id===e.pointerId){
-        const dx=e.clientX-drag.x,dy=e.clientY-drag.y;
-        drag.travel+=Math.hypot(dx,dy);
-        view.targetAz=angleDelta(view.targetAz-dx*look.yawPerPixel);
-        view.targetPitch=clamp(view.targetPitch-dy*look.pitchPerPixel,look.minPitch,look.maxPitch);
-        view.lastLookAt=state.time;
-        drag.x=e.clientX;drag.y=e.clientY;
+      const pt=camPointers.get(e.pointerId);
+      if(pt){
+        const dx=e.clientX-pt.x,dy=e.clientY-pt.y;
+        pt.travel+=Math.hypot(dx,dy);
+        pt.x=e.clientX;pt.y=e.clientY;
+        if(camPointers.size===2){
+          const pts=[...camPointers.values()];
+          const dNow=Math.hypot(pts[0].x-pts[1].x,pts[0].y-pts[1].y);
+          if(pinchDist>12&&dNow>12){
+            view.targetDistance=clamp(view.targetDistance*(pinchDist/dNow),look.near,look.far);
+          }
+          pinchDist=dNow;
+        }else{
+          const sens=e.pointerType==='touch'?1.18:1.0;
+          view.targetAz=angleDelta(view.targetAz-dx*look.yawPerPixel*sens);
+          view.targetPitch=clamp(view.targetPitch-dy*look.pitchPerPixel*sens,look.minPitch,look.maxPitch);
+          if(joy.active)joy.camRef=chaseHeading-view.targetAz;
+          view.lastLookAt=state.time;
+        }
       }
       if(e.clientY<75)showUI();
     });
-    canvas.addEventListener('pointerup',e=>{
-      if(drag&&drag.id===e.pointerId){
-        const tap=drag.travel<4;
-        drag=null;if(tap&&state.mode==='intro')mode('ride');
-      }
-    });
-    canvas.addEventListener('lostpointercapture',e=>{if(drag?.id===e.pointerId)drag=null;});
+    const endCamPointer=e=>{
+      const pt=camPointers.get(e.pointerId);
+      if(!pt)return;
+      const tap=pt.travel<6&&camPointers.size===1;
+      camPointers.delete(e.pointerId);
+      drag=camPointers.size===1?[...camPointers.values()][0]:null;
+      if(tap&&state.mode==='intro'&&e.type==='pointerup')mode('ride');
+    };
+    canvas.addEventListener('pointerup',endCamPointer);
+    canvas.addEventListener('pointercancel',endCamPointer);
+    canvas.addEventListener('lostpointercapture',endCamPointer);
     canvas.addEventListener('wheel',e=>{
       if(outfitter.visible)return;
       e.preventDefault();
       const pixels=e.deltaY*(e.deltaMode===1?16:e.deltaMode===2?canvas.clientHeight:1);
       view.targetDistance=clamp(view.targetDistance*Math.exp(clamp(pixels,-120,120)*.00085),look.near,look.far);
     },{passive:false});
-    if(coarse)byId('hint').textContent='滑动画面环视　·　镜位按钮切换远近';
+    if(coarse)byId('hint').textContent='左下轮盘控制方向与快慢（拉到底冲刺） · 右手滑屏 360° 环视';
     let sceneDraws=0,sceneTriangles=0;
     let perfAvgDt=1/60,perfSampleTime=0,perfCooldown=0;
     let steerHold=0,lastTurnSign=0,physAcc=0,riderSunVis=1;
@@ -953,7 +1081,9 @@
       dynamics.effort=state.effort;dynamics.grade=state.grade;dynamics.acceleration=state.acceleration;
       dynamics.sprint=state.sprint;
       dynamics.parked=state.parked;
-      dynamics.shadowInMeadow=!state.deckId&&!RideTrails.isDeck(state.x,state.z)&&RideWorld.waterDepth(state.x,state.z)<.015;
+      const inWaterNow=!state.deckId&&!RideTrails.isDeck(state.x,state.z)&&RideWorld.waterDepth(state.x,state.z)>=.015;
+      dynamics.shadowInMeadow=!state.deckId&&!RideTrails.isDeck(state.x,state.z);
+      dynamics.inWater=inWaterNow;
       dynamics.airborne=state.airborne;dynamics.verticalSpeed=state.verticalSpeed;
       dynamics.airHeight=state.airHeight;dynamics.landingCompression=state.landingCompression;dynamics.shadowHeight=receivingHeight;
       dynamics.braking=active&&(held.has('KeyS')||held.has('ArrowDown'));

@@ -60,9 +60,23 @@
       <p><kbd>R</kbd> 回到起点</p>
       <button id="close-help" type="button">收起</button>
     </section>
-    <div id="touch-controls" aria-label="触屏方向和车速">
-      <div><button data-key="KeyA" aria-label="左转">‹</button><button data-key="KeyD" aria-label="右转">›</button></div>
-      <div><button data-key="KeyQ" aria-label="按住回望车辙">回望</button><button id="touch-camera" aria-label="切换镜位">镜位</button><button data-key="KeyS" aria-label="刹车">慢</button><button data-key="KeyW" aria-label="加速">快</button></div>
+    <div id="touch-controls" aria-label="触屏轮盘与车速控制">
+      <div id="joy-zone" aria-label="360度方向与快慢摇杆">
+        <div id="joy-base">
+          <i class="joy-chevron up"></i>
+          <i class="joy-chevron right"></i>
+          <i class="joy-chevron down"></i>
+          <i class="joy-chevron left"></i>
+          <div id="joy-knob"></div>
+        </div>
+      </div>
+      <div id="touch-actions">
+        <div class="touch-pills">
+          <button type="button" id="touch-gear" aria-label="切换快慢档位">速度·标准</button>
+          <button type="button" id="touch-camera" aria-label="切换镜位">镜位</button>
+        </div>
+        <button type="button" id="touch-brake" data-key="KeyS" aria-label="按住刹车">刹车</button>
+      </div>
     </div>
     <button id="fork" type="button" hidden><span id="fork-label"></span><kbd>N</kbd></button>
     <div id="notice" role="status" aria-live="polite"></div>

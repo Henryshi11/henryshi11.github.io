@@ -154,8 +154,22 @@
     const bikeModels=makeBikes({T,V,batch,lean,forkGroup,crank,rear,front,seatTube,headTop,headBase});
     b.ball(V(0,.982,.254),V(.083,.032,.135),palette.leather,[-.04,0,0]);
     b.ball(V(0,.985,.141),V(.038,.024,.083),palette.leather);
+    // Brooks-style copper cantle rivets + stitched leather under-saddle tool roll
+    for(let r=-2;r<=2;r++){
+      const rx=r*.026,rz=.374-.014*r*r;
+      b.ball(V(rx,.989,rz),V(.0045,.0035,.0045),0xd99b56);
+    }
+    b.rod(V(-.046,.938,.318),V(.046,.938,.318),.023,0x5e4132);
+    for(const sx of [-.028,.028])b.ring(V(sx,.938,.318),.024,.0032,0xc8995e,20,[0,0,Math.PI/2]);
     b.cable([V(.036,.958,.306),V(.035,.933,.208),V(.027,.955,.143)],.004,palette.alloy);
     b.cable([V(-.036,.958,.306),V(-.035,.933,.208),V(-.027,.955,.143)],.004,palette.alloy);
+    // 5-speed alloy rear cassette cogs + classic rear derailleur & jockey wheels
+    for(let cog=0;cog<5;cog++){
+      b.ring(V(.036+cog*.0045,.36,.55),.038-cog*.0052,.0022,cog%2?palette.alloy:palette.frameLight,28);
+    }
+    b.rod(V(.062,.36,.55),V(.066,.302,.562),.0065,palette.alloy);
+    b.ring(V(.066,.322,.558),.013,.0032,palette.dark,18);
+    b.ring(V(.066,.294,.566),.014,.0032,palette.dark,18);
     b.ring(V(.054,.34,.06),.084,.006,palette.alloy,44);
     b.ring(V(.054,.34,.06),.073,.005,palette.frameLight,40);
     b.rod(V(-.068,.34,.06),V(.068,.34,.06),.019,palette.dark);
@@ -165,7 +179,7 @@
         .007,palette.alloy);
     }
     b.cable([V(.065,.423,.06),V(.065,.414,.21),V(.065,.392,.55),
-      V(.065,.359,.587),V(.065,.326,.552),V(.065,.265,.079),
+      V(.065,.359,.587),V(.065,.308,.568),V(.065,.282,.556),V(.065,.265,.079),
       V(.065,.281,.004),V(.065,.341,-.019),V(.065,.40,.003),V(.065,.423,.06)],
       .0039,palette.dark);
     // Shirt beneath the cape, gathered waist and forearms fixed to the grips.
@@ -252,6 +266,59 @@
     headParts.cable([V(-.024,1.605,-.259),V(-.008,1.602,-.266),
       V(.009,1.603,-.266),V(.024,1.606,-.259)],.0025,0xa56551);
     const portraits=makeCharacters({T,V,batch,headGroup,bodyGroup});
+    // Wind-streaming twin grosgrain hat ribbons on Iris's straw hat for lively Ghibli motion!
+    const ribbonSegs=10,ribbonVerts=2*(ribbonSegs+1)*2;
+    const ribbonPos=new Float32Array(ribbonVerts*3),ribbonCol=new Float32Array(ribbonVerts*3),ribbonIdx=[];
+    const ribBase=color(0x9b3e2c),ribTip=color(0xd87a56),ribMix=new T.Color();
+    for(let r=0;r<2;r++){
+      const baseV=r*(ribbonSegs+1)*2;
+      for(let j=0;j<=ribbonSegs;j++){
+        const t=j/ribbonSegs;
+        ribMix.copy(ribBase).lerp(ribTip,t*.55);
+        for(let k=0;k<2;k++){
+          const vi=(baseV+j*2+k)*3;
+          ribbonCol[vi]=ribMix.r;ribbonCol[vi+1]=ribMix.g;ribbonCol[vi+2]=ribMix.b;
+        }
+        if(j<ribbonSegs){
+          const a=baseV+j*2;
+          ribbonIdx.push(a,a+1,a+3,a,a+3,a+2);
+        }
+      }
+    }
+    const ribbonGeo=new T.BufferGeometry(),ribbonAttr=new T.BufferAttribute(ribbonPos,3);
+    ribbonAttr.setUsage(T.DynamicDrawUsage);
+    ribbonGeo.setAttribute("position",ribbonAttr);
+    ribbonGeo.setAttribute("color",new T.BufferAttribute(ribbonCol,3));
+    ribbonGeo.setIndex(ribbonIdx);
+    const ribbonMat=mat.clone();ribbonMat.side=T.DoubleSide;
+    const hatRibbons=new T.Mesh(ribbonGeo,ribbonMat);
+    hatRibbons.name="Wind-streaming straw hat ribbons";hatRibbons.frustumCulled=false;
+    headGroup.add(hatRibbons);
+    function updateHatRibbons(time,vSpeed,turnLag,gust){
+      hatRibbons.visible=characterIndex===0;
+      if(!hatRibbons.visible)return;
+      const air=clamp(vSpeed/15,0,1.25),len=.29;
+      for(let r=0;r<2;r++){
+        const side=r?1:-1,baseV=r*(ribbonSegs+1)*2;
+        const rootX=side*.016,rootY=1.744,rootZ=-.004;
+        for(let j=0;j<=ribbonSegs;j++){
+          const t=j/ribbonSegs,t2=t*t;
+          const wave=Math.sin(time*7.2-t*5.4+r*1.9)*(.012+.038*air+.018*gust)*t2;
+          const sideFlutter=Math.cos(time*5.6-t*4.6+r*2.4)*(.010+.026*air)*t2 + turnLag*.065*t2;
+          const lift=.14+.74*Math.min(1,air*.95+gust*.25);
+          const cx=rootX + side*(.010+.026*t) + sideFlutter;
+          const cy=rootY - len*t*(1-.68*lift) + wave;
+          const cz=rootZ + len*t*(.32+.68*lift) + Math.abs(wave)*.25;
+          const halfW=.0085*(1-.42*t*t);
+          const twist=.35*Math.sin(time*6.0-t*3.8+r);
+          const wx=halfW*Math.cos(twist),wy=halfW*Math.sin(twist);
+          const v0=(baseV+j*2)*3,v1=v0+3;
+          ribbonPos[v0]=cx-wx;ribbonPos[v0+1]=cy-wy;ribbonPos[v0+2]=cz;
+          ribbonPos[v1]=cx+wx;ribbonPos[v1+1]=cy+wy;ribbonPos[v1+2]=cz;
+        }
+      }
+      ribbonAttr.needsUpdate=true;ribbonGeo.computeVertexNormals();
+    }
     sculptInto(collarParts,[[1.469,-.095,.122,.089],[1.485,-.107,.128,.095],
       [1.503,-.121,.107,.081],[1.525,-.132,.074,.061]],0xffffff);
     torsoParts.ball(V(-.023,1.478,-.192),V(.014,.015,.010),palette.gold);
@@ -505,18 +572,18 @@
           // transmitted skylight. Soft folds and a narrow selvedge reveal the cut.
           vec3 N=nv<0.?-n:n;
           vec3 sun=normalize(mat3(viewMatrix)*vec3(.55,.62,.56));
-          float along=.5+.5*cos(23.*u-2.*v+1.5*sin(v*3.4+u*4.));
-          float fold=.22*along+.14*smoothstep(.04,.98,v)+.15*(1.-abs(nv));
+          float along=.5+.5*cos(13.*u-2.4*v+1.2*sin(v*3.8+u*3.2));
+          float fold=.08*along+.13*smoothstep(.04,.98,v)+.22*(1.-abs(nv));
           vec3 face=mix(silk,silkShade,fold);
           float light=dot(N,sun);
-          float silkFlash=pow(max(0.,dot(normalize(eye+sun),N)),10.);
-          vec3 c=gl_FrontFacing?face:mix(lining,silk,.32);
-          float wrapLight=smoothstep(-.38,.52,light);
+          float silkFlash=pow(max(0.,dot(normalize(eye+sun),N)),8.5);
+          vec3 c=gl_FrontFacing?face:mix(lining,silk,.36);
+          float wrapLight=smoothstep(-.42,.56,light);
           // Intense glowing vermilion-gold subsurface scattering when sunlight punches through billowing silk!
-          float trans=pow(clamp(dot(-sun,eye)*.5+.5,0.,1.),1.7)*smoothstep(-.45,.72,-light)*(.35+.65*v)*sunVisibility;
-          c*=mix(vec3(.38,.44,.72),vec3(1.18,1.07,.96),wrapLight);
-          c+=trans*mix(silk,vec3(1.15,.72,.24),.55)*.62;
-          c+=silkFlash*.18*sunVisibility*mix(c,vec3(1.),.45)+.14*sunVisibility*pow(1.-abs(nv),2.2)*vec3(1.08,.88,.62);
+          float trans=pow(clamp(dot(-sun,eye)*.5+.5,0.,1.),1.6)*smoothstep(-.48,.76,-light)*(.38+.62*v)*sunVisibility;
+          c*=mix(vec3(.36,.43,.73),vec3(1.20,1.08,.96),wrapLight);
+          c+=trans*mix(silk,vec3(1.18,.74,.26),.58)*.66;
+          c+=silkFlash*.22*sunVisibility*mix(c,vec3(1.),.48)+.16*sunVisibility*pow(1.-abs(nv),2.0)*vec3(1.10,.90,.64);
           float edge=min(u,1.-u);
           edge=min(edge,mix(1.,abs(.5-u),separate*smoothstep(split,split+.18,v)));
           float binding=band(edge,.0055),piping=band(abs(edge-.020),.0022);
@@ -626,35 +693,35 @@
       }
       return z;
     }
-    // World-space Verlet cloth simulation grid (11 x 15) for genuine inertia, turn whip, and billowing airflow.
-    const simU=10,simV=14,simCols=simU+1,simRows=simV+1,simCount=simCols*simRows;
+    // World-space Verlet + Diagonal Shear cloth simulation (13 x 17) with traveling vortex waves & sculptural silk flutes!
+    const simU=12,simV=16,simCols=simU+1,simRows=simV+1,simCount=simCols*simRows;
     const simCurr=Array.from({length:simCount},()=>V());
     const simPrev=Array.from({length:simCount},()=>V());
     let simInit=false;
     const simInvMat=new T.Matrix4(),simTmpA=V(),simTmpB=V(),simTmpC=V(),simAirDir=V();
     const simRearWorld=V(),simSeatWorld=V(),simBackWorld=V(),simLastAnchor=V();
+    const rearInCloth=V(),rackInCloth=V();
 
     function cloth(time,shoulderWind,turnLag,hemWind,crossWind,gust,drag,terrainPitch,planted,fallLift,dtStep,speedNow) {
       bodyGroup.updateWorldMatrix(true,false);
       simInvMat.copy(bodyGroup.matrixWorld).invert();
       const cut=looks[lookIndex].cut,scarf=cut==="scarf",traveler=cut==="traveler";
-      const full=cut==="full"||traveler,slit=scarf?.13:.42;
-      // Sleek, graceful flowing cloak proportions — kept lower behind shoulders (never ballooning over head).
-      const baseLen=traveler?1.46:scarf?1.35:full?1.42:1.38;
+      const full=cut==="full"||traveler,slit=scarf?.13:.44;
+      const baseLen=traveler?1.48:scarf?1.36:full?1.44:1.40;
       const segLen=baseLen/simV;
-      const topHalfW=scarf?.095:.20;
-      const hemHalfW=scarf?.19:.54;
-      // Compute world-space collar pins (row j = 0)
+      const topHalfW=scarf?.095:.205;
+      const hemHalfW=scarf?.20:.58;
+      // Pin collar row (j = 0) smoothly around shoulders
       for(let i=0;i<=simU;i++){
         const u=i/simU,s=2*u-1;
         const rx=topHalfW*s;
         const ry=(scarf?1.514:1.508)-(scarf?.024:.038)*s*s;
-        const rz=(scarf?-.044:.032)-(scarf?.058:.105)*s*s;
+        const rz=(scarf?-.044:.034)-(scarf?.058:.102)*s*s;
         simCurr[i].set(rx,ry,rz).applyMatrix4(bodyGroup.matrixWorld);
         simPrev[i].copy(simCurr[i]);
       }
-      simBackWorld.set(0,1.26,.08).applyMatrix4(bodyGroup.matrixWorld);
-      simSeatWorld.set(0,.98,.25).applyMatrix4(lean.matrixWorld);
+      simBackWorld.set(0,1.25,.09).applyMatrix4(bodyGroup.matrixWorld);
+      simSeatWorld.set(0,.972,.275).applyMatrix4(lean.matrixWorld);
       simRearWorld.set(0,.36,.55).applyMatrix4(lean.matrixWorld);
       simTmpA.set(0,0,-1).transformDirection(root.matrixWorld).normalize();
       simTmpB.set(1,0,0).transformDirection(root.matrixWorld).normalize();
@@ -668,97 +735,118 @@
           const halfW=topHalfW+(hemHalfW-topHalfW)*v;
           for(let i=0;i<=simU;i++){
             const u=i/simU,s=2*u-1,idx=j*simCols+i;
-            simCurr[idx].set(halfW*s,1.50-baseLen*v*.45,.04+baseLen*v*.88).applyMatrix4(bodyGroup.matrixWorld);
+            simCurr[idx].set(halfW*s,1.50-baseLen*v*.52,.06+baseLen*v*.84).applyMatrix4(bodyGroup.matrixWorld);
             simPrev[idx].copy(simCurr[idx]);
           }
         }
       }
       simLastAnchor.copy(anchor);
 
-      const h=clamp(dtStep||1/60,1/240,.04);
-      const h2=h*h;
+      const totalH=clamp(dtStep||1/60,1/240,.04);
+      const subSteps=totalH>1/75?2:1;
+      const h=totalH/subSteps,h2=h*h;
       const vSpeed=Math.max(0,speedNow||0);
-      const flowFactor=clamp((vSpeed+2.8)/13.5,0.22,1.45);
-      // Soft backward air stream so Verlet carries real turn whip & speed lag WITHOUT stretching cloth into a stiff board.
-      simAirDir.copy(simTmpA).multiplyScalar(-1).addScaledVector(simTmpB,crossWind*.52+.45*turnLag).normalize();
-      const damping=0.958;
+      const speedBlend=clamp(vSpeed/16,0,1.35);
+      const flowFactor=clamp((vSpeed+2.2)/12.5,0.18,1.55);
+      simAirDir.copy(simTmpA).multiplyScalar(-1).addScaledVector(simTmpB,crossWind*.56+.52*turnLag).normalize();
+      const damping=0.974;
 
-      for(let j=1;j<=simV;j++){
-        const v=j/simV;
-        for(let i=0;i<=simU;i++){
-          const u=i/simU,s=2*u-1,idx=j*simCols+i;
-          const cur=simCurr[idx],prv=simPrev[idx];
-          const vx=(cur.x-prv.x)*damping,vy=(cur.y-prv.y)*damping,vz=(cur.z-prv.z)*damping;
-          prv.copy(cur);
-
-          // Balanced aerodynamic stream so cloak trails smoothly below shoulder line with graceful ripple
-          const sailPush=(7.5+vSpeed*1.35+gust*3.4)*(0.45+0.55*v);
-          const liftY=(1.4+Math.min(7.2,vSpeed*.52+gust*2.6+fallLift*7.0))*(0.38+0.62*v);
-          const fanOut=s*(1.8+vSpeed*.30)*v;
-
-          const gustLift=Math.sin(time*4.8-v*5.2+s*1.2)*(5.2+7.5*flowFactor)*v;
-
-          const ax=simAirDir.x*sailPush + simTmpB.x*fanOut;
-          const ay=-9.2 + liftY + gustLift;
-          const az=simAirDir.z*sailPush + simTmpB.z*fanOut;
-
-          cur.x+=vx+ax*h2;
-          cur.y+=vy+ay*h2;
-          cur.z+=vz+az*h2;
-        }
-      }
-
-      // 3 gentle relaxation iterations keep length accurate while preserving supple billowing curvature
-      for(let iter=0;iter<3;iter++){
-        for(let j=0;j<=simV;j++){
-          const v=j/simV;
-          const restH=(topHalfW+(hemHalfW-topHalfW)*v)*2/simU;
+      for(let step=0;step<subSteps;step++){
+        for(let j=1;j<=simV;j++){
+          const v=j/simV,vCurve=Math.pow(v,1.25);
           for(let i=0;i<=simU;i++){
-            const idx=j*simCols+i,p1=simCurr[idx];
-            if(j<simV){
-              const p2=simCurr[idx+simCols];
-              const dx=p2.x-p1.x,dy=p2.y-p1.y,dz=p2.z-p1.z;
-              const d=Math.hypot(dx,dy,dz)||.0001;
-              const diff=(d-segLen)/d;
-              if(j===0){
+            const u=i/simU,s=2*u-1,idx=j*simCols+i;
+            const cur=simCurr[idx],prv=simPrev[idx];
+            const vx=(cur.x-prv.x)*damping,vy=(cur.y-prv.y)*damping,vz=(cur.z-prv.z)*damping;
+            prv.copy(cur);
+
+            // Progressive slipstream lift + traveling Kármán vortex waves rolling from collar to hem!
+            const sailPush=(4.8+vSpeed*1.62+gust*4.2)*(0.38+0.62*v);
+            const liftY=(0.9+Math.min(8.6,vSpeed*.62+gust*3.1+fallLift*7.5))*(0.32+0.68*Math.sin(v*Math.PI*.72));
+            const fanOut=s*(1.4+vSpeed*.34+gust*1.1)*v*(.82+.18*Math.sin(time*3.6-v*4.0));
+
+            const wavePhase=time*5.8-v*6.6;
+            const vortexY=(Math.sin(wavePhase+s*1.4)*.68+Math.sin(wavePhase*1.7-s*2.6+1.2)*.32)*(4.6+9.4*flowFactor)*vCurve;
+            const vortexSide=Math.cos(time*4.5-v*5.8+s*1.9)*(2.2+6.2*flowFactor)*v*v + turnLag*(2.8+5.6*speedBlend)*vCurve;
+
+            const ax=simAirDir.x*sailPush + simTmpB.x*(fanOut+vortexSide);
+            const ay=-9.4 + liftY + vortexY;
+            const az=simAirDir.z*sailPush + simTmpB.z*(fanOut+vortexSide);
+
+            cur.x+=vx+ax*h2;
+            cur.y+=vy+ay*h2;
+            cur.z+=vz+az*h2;
+          }
+        }
+
+        // Structural + diagonal shear relaxation keeps woven silk supple & prevents rigid board stretching
+        for(let iter=0;iter<4;iter++){
+          for(let j=0;j<=simV;j++){
+            const v=j/simV;
+            const restH=(topHalfW+(hemHalfW-topHalfW)*v)*2/simU;
+            const restDiag=Math.hypot(segLen,restH);
+            for(let i=0;i<=simU;i++){
+              const idx=j*simCols+i,p1=simCurr[idx];
+              if(j<simV){
+                const p2=simCurr[idx+simCols];
+                const dx=p2.x-p1.x,dy=p2.y-p1.y,dz=p2.z-p1.z;
+                const d=Math.hypot(dx,dy,dz)||.0001;
+                const diff=(d-segLen)/d;
+                if(j===0){
+                  p2.x-=dx*diff;p2.y-=dy*diff;p2.z-=dz*diff;
+                }else{
+                  p1.x+=dx*diff*.46;p1.y+=dy*diff*.46;p1.z+=dz*diff*.46;
+                  p2.x-=dx*diff*.54;p2.y-=dy*diff*.54;p2.z-=dz*diff*.54;
+                }
+                if(j>0 && i<simU && iter<2){
+                  const pD=simCurr[idx+simCols+1];
+                  const sx=pD.x-p1.x,sy=pD.y-p1.y,sz=pD.z-p1.z;
+                  const sd=Math.hypot(sx,sy,sz)||.0001;
+                  const sDiff=(sd-restDiag)/sd*.18;
+                  p1.x+=sx*sDiff;p1.y+=sy*sDiff;p1.z+=sz*sDiff;
+                  pD.x-=sx*sDiff;pD.y-=sy*sDiff;pD.z-=sz*sDiff;
+                }
+              }
+              if(j>0 && i<simU){
+                const p2=simCurr[idx+1];
+                const dx=p2.x-p1.x,dy=p2.y-p1.y,dz=p2.z-p1.z;
+                const d=Math.hypot(dx,dy,dz)||.0001;
+                const diff=(d-restH)/d*.32;
+                p1.x+=dx*diff;p1.y+=dy*diff;p1.z+=dz*diff;
                 p2.x-=dx*diff;p2.y-=dy*diff;p2.z-=dz*diff;
-              }else{
-                p1.x+=dx*diff*.46;p1.y+=dy*diff*.46;p1.z+=dz*diff*.46;
-                p2.x-=dx*diff*.54;p2.y-=dy*diff*.54;p2.z-=dz*diff*.54;
               }
             }
-            if(j>0 && i<simU){
-              const p2=simCurr[idx+1];
-              const dx=p2.x-p1.x,dy=p2.y-p1.y,dz=p2.z-p1.z;
-              const d=Math.hypot(dx,dy,dz)||.0001;
-              const diff=(d-restH)/d*.36;
-              p1.x+=dx*diff;p1.y+=dy*diff;p1.z+=dz*diff;
-              p2.x-=dx*diff;p2.y-=dy*diff;p2.z-=dz*diff;
+          }
+        }
+
+        for(let j=1;j<=simV;j++){
+          for(let i=0;i<=simU;i++){
+            const p=simCurr[j*simCols+i];
+            if(terrain){
+              const floor=terrain(p.x,p.z)+.14;
+              if(p.y<floor)p.y=floor;
             }
+            simTmpC.subVectors(p,simBackWorld);
+            const dBack=simTmpC.length();
+            if(dBack<.27&&dBack>.001)p.copy(simBackWorld).addScaledVector(simTmpC,.27/dBack);
+            simTmpC.subVectors(p,simSeatWorld);
+            const dSeat=simTmpC.length();
+            if(dSeat<.21&&dSeat>.001)p.copy(simSeatWorld).addScaledVector(simTmpC,.21/dSeat);
+            simTmpC.subVectors(p,simRearWorld);
+            const dWheel=simTmpC.length();
+            if(dWheel<.45&&dWheel>.001)p.copy(simRearWorld).addScaledVector(simTmpC,.45/dWheel);
           }
         }
       }
 
-      for(let j=1;j<=simV;j++){
-        for(let i=0;i<=simU;i++){
-          const p=simCurr[j*simCols+i];
-          if(terrain){
-            const floor=terrain(p.x,p.z)+.14;
-            if(p.y<floor)p.y=floor;
-          }
-          simTmpC.subVectors(p,simBackWorld);
-          const dBack=simTmpC.length();
-          if(dBack<.27&&dBack>.001)p.copy(simBackWorld).addScaledVector(simTmpC,.27/dBack);
-          simTmpC.subVectors(p,simRearWorld);
-          const dWheel=simTmpC.length();
-          if(dWheel<.46&&dWheel>.001)p.copy(simRearWorld).addScaledVector(simTmpC,.46/dWheel);
-        }
-      }
+      // Transform lean-space saddle, rear wheel & gravel rack into bodyGroup local space for 100% poke-free silk!
+      seatInCloth.copy(simSeatWorld).applyMatrix4(simInvMat);
+      rearInCloth.copy(simRearWorld).applyMatrix4(simInvMat);
+      if(bikeIndex===2)rackInCloth.set(0,.83,.56).applyMatrix4(lean.matrixWorld).applyMatrix4(simInvMat);
 
-      // Smooth flowing wave overlay kept cleanly below shoulder level (zero umbrella puffing)
-      const wavePower=clamp((vSpeed+1.6)/12.5,0.18,1.25)*(0.85+0.30*gust);
+      const wavePower=clamp((vSpeed+1.8)/11.5,0.22,1.38)*(0.85+0.32*gust);
       for(let k=0;k<windSheet.length;k++){
-        const {u,v,s,side,outer,arch}=windSheet[k];
+        const {u,v,s,local,side,outer,arch}=windSheet[k];
         const sewn=full?0:T.MathUtils.smoothstep(v,slit,1);
         const fu=clamp(u*simU,0,simU-.0001),fv=clamp(v*simV,0,simV-.0001);
         const iu=Math.floor(fu),iv=Math.floor(fv),tu=fu-iu,tv=fv-iv;
@@ -766,25 +854,44 @@
         const c01=simCurr[(iv+1)*simCols+iu],c11=simCurr[(iv+1)*simCols+iu+1];
         const w00=(1-tu)*(1-tv),w10=tu*(1-tv),w01=(1-tu)*tv,w11=tu*tv;
 
-        const vGain=Math.pow(v,1.45);
-        const bigRoll=Math.sin(time*5.0-v*5.4+s*.9)*.14*vGain*wavePower;
-        const cornerSnap=Math.sin(time*8.6-v*9.6+s*2.4)*.075*v*v*wavePower*(.45+.55*Math.abs(s));
-        const slowSurge=Math.cos(time*2.6-v*3.0-s*.7)*.055*vGain*wavePower;
-        const dropSettle=-.16*v*(1-.35*Math.min(1,vSpeed/18));
-        const sailDome=arch*(.032*wavePower)*(1-.35*s*s);
-        const sideWave=(Math.sin(time*4.0-v*4.6+s*1.3)*.075 + Math.cos(time*7.0-v*8.0-s*2.0)*.04)*vGain*wavePower;
+        const vGain=Math.pow(v,1.30);
+        const bigRoll=Math.sin(time*5.4-v*6.2+s*1.15)*.115*vGain*wavePower;
+        const trailRipple=Math.sin(time*9.2-v*10.8+s*2.8)*.052*v*v*wavePower*(.40+.60*Math.abs(s));
+        const slowBreath=Math.cos(time*2.8-v*3.4-s*.8)*.048*vGain*wavePower;
+        const dropSettle=-.095*v*(1-.62*Math.min(1,vSpeed/12));
+        const sailDome=arch*(.048*wavePower)*(1-.28*s*s);
+        const sideWave=(Math.sin(time*4.2-v*5.0+s*1.5)*.082 + Math.cos(time*7.4-v*8.6-s*2.2)*.038)*vGain*wavePower;
 
         simTmpC.set(
           c00.x*w00+c10.x*w10+c01.x*w01+c11.x*w11 + simTmpB.x*sideWave,
-          c00.y*w00+c10.y*w10+c01.y*w01+c11.y*w11 + bigRoll + cornerSnap + slowSurge + sailDome + dropSettle,
+          c00.y*w00+c10.y*w10+c01.y*w01+c11.y*w11 + bigRoll + trailRipple + slowBreath + sailDome + dropSettle,
           c00.z*w00+c10.z*w10+c01.z*w01+c11.z*w11 + simTmpB.z*sideWave
         ).applyMatrix4(simInvMat);
 
-        const microPleat=Math.sin(s*12-v*7+time*6.4)*.022*v*wavePower;
-        let x=simTmpC.x + side*sewn*(.13*(.85-.6*outer));
-        let y=simTmpC.y + microPleat;
-        let z=simTmpC.z + Math.abs(microPleat)*.5;
-        if(y>1.12&&v<.32)z=upperBackDepth(x,y,z);
+        // 3.5 living longitudinal silk flutes + rounded billowing split lobes (never pointy triangles!)
+        const fluteWave=Math.sin(s*8.4 + Math.sin(v*3.4-time*4.1)*.65 - time*2.2);
+        const fluteAmp=(.014+.042*Math.pow(v,.85))*(.48+.52*wavePower)*T.MathUtils.smoothstep(v,.05,.28);
+        const lobeArch=Math.sin(local*Math.PI);
+        const panelSpread=side*sewn*(.042+.052*lobeArch)*(.45+.55*wavePower);
+        const cornerRound=-.022*outer*outer*v*v*(1-.35*Math.min(1,vSpeed/16));
+
+        let x=simTmpC.x + panelSpread + s*fluteAmp*.18;
+        let y=simTmpC.y + fluteWave*fluteAmp*.65 + lobeArch*sewn*.024*wavePower + cornerRound;
+        let z=simTmpC.z + fluteWave*fluteAmp*.88 + (.012+.022*lobeArch)*v;
+        if(y>1.12&&v<.34)z=upperBackDepth(x,y,z);
+
+        // Exact local-space saddle + tool-roll, rear-wheel tire arc, and cargo-rack guards
+        const uSeat=((x-seatInCloth.x)/.175)**2 + ((y-seatInCloth.y)/.145)**2;
+        if(uSeat<1)z=Math.max(z,seatInCloth.z+.175*Math.sqrt(1-uSeat));
+        const dyW=y-rearInCloth.y,dxW=(x-rearInCloth.x)/.115;
+        if(Math.abs(dyW)<.40 && Math.abs(dxW)<1){
+          const wheelArc=Math.sqrt(Math.max(0,.40*.40-dyW*dyW))*Math.sqrt(1-dxW*dxW);
+          z=Math.max(z,rearInCloth.z+wheelArc);
+        }
+        if(bikeIndex===2){
+          const uRack=((x-rackInCloth.x)/.155)**2 + ((y-rackInCloth.y)/.115)**2;
+          if(uRack<1)z=Math.max(z,rackInCloth.z+.145*Math.sqrt(1-uRack));
+        }
         cp[k*3]=x;cp[k*3+1]=y;cp[k*3+2]=z;
       }
       capeAttr.needsUpdate=true;capeGeometry.computeVertexNormals();
@@ -801,10 +908,12 @@
       tex.minFilter=T.LinearFilter;tex.magFilter=T.LinearFilter;
       const receiver={texture:tex,span,strength:0,pasture:false};
       if(options.preview!==true)scope.RideRider.shadow=receiver;
-      const g=new T.PlaneGeometry(span,span,4,4);g.rotateX(-Math.PI/2);
+      const g=new T.PlaneGeometry(span,span,16,16);g.rotateX(-Math.PI/2);
       const mesh=new T.Mesh(g,new T.MeshBasicMaterial({map:tex,color:0x0b1938,
         transparent:true,opacity:.80,depthWrite:false,toneMapped:false,
-        polygonOffset:true,polygonOffsetFactor:-2,side:T.DoubleSide}));
+        polygonOffset:true,polygonOffsetFactor:-2,
+        blending:T.CustomBlending,blendSrc:T.SrcAlphaFactor,blendDst:T.OneMinusSrcAlphaFactor,
+        blendSrcAlpha:T.ZeroFactor,blendDstAlpha:T.OneFactor,side:T.DoubleSide}));
       mesh.name="Ground-following rider and bicycle shadow";mesh.renderOrder=2;
       root.add(mesh);
       const p=g.attributes.position,vec=V(),out=V();
@@ -848,7 +957,8 @@
         altitude=Math.max(0,dynamics.airHeight||0);
         receiver.pasture=Boolean(dynamics.shadowInMeadow);
         mesh.visible=!receiver.pasture&&altitude<1.66;
-        receiver.strength=mesh.material.opacity=(options.preview===true?.28:.86)*sunVisibility.value*(1-T.MathUtils.smoothstep(altitude,.08,1.85));
+        const baseOp=options.preview===true?.28:dynamics.inWater?.40:.86;
+        receiver.strength=mesh.material.opacity=baseOp*sunVisibility.value*(1-T.MathUtils.smoothstep(altitude,.08,1.85));
         if(receiver.strength<=.001)return;
         if(Math.abs(time-lastPose)<1/36-.001)return;
         lastPose=time;pose.copy(root.quaternion).multiply(lean.quaternion);
@@ -897,13 +1007,24 @@
           line([leg.shoe.position,leg.shoe.position.clone().add(V(0,-.027,-.128))],.042);
         }
         for(const arm of armRig)line([arm.start,arm.bend,arm.end],.040);
-        // Sample a few longitudinal folds to retain the blown-out hem at every orbit angle.
+        // Trace each silk panel as ONE closed perimeter polygon + 1.8px overlap stroke so ZERO seam lines ever appear!
         const clothPoint=(panel,j,i)=>{const n=3*(panel*panelSize+j*(capeU+1)+i);return V(cp[n],cp[n+1],cp[n+2]);};
-        for(let panel=0;panel<2;panel++)for(let i=0;i<capeU;i+=5){
-          const e=Math.min(capeU,i+5);
-          line([clothPoint(panel,0,i),clothPoint(panel,0,e),clothPoint(panel,8,e),
-            clothPoint(panel,18,e),clothPoint(panel,capeV,e),clothPoint(panel,capeV,i),
-            clothPoint(panel,18,i),clothPoint(panel,8,i)],0,true,bodyGroup.matrix);
+        for(let panel=0;panel<2;panel++){
+          const ring=[];
+          for(let i=0;i<=capeU;i+=4)ring.push(clothPoint(panel,0,i));
+          ring.push(clothPoint(panel,0,capeU));
+          for(let j=4;j<=capeV;j+=4)ring.push(clothPoint(panel,j,capeU));
+          ring.push(clothPoint(panel,capeV,capeU));
+          for(let i=capeU-2;i>=0;i-=2)ring.push(clothPoint(panel,capeV,i));
+          ring.push(clothPoint(panel,capeV,0));
+          for(let j=capeV-4;j>=4;j-=4)ring.push(clothPoint(panel,j,0));
+          ctx.beginPath();
+          for(let k=0;k<ring.length;k++){
+            const s=project(ring[k],bodyGroup.matrix);
+            if(k)ctx.lineTo(s.x,s.y);else ctx.moveTo(s.x,s.y);
+          }
+          ctx.closePath();ctx.fill();
+          ctx.lineWidth=1.8;ctx.stroke();
         }
         tex.needsUpdate=true;
       };
@@ -1110,7 +1231,10 @@
       const barAngle=Number.isFinite(dynamics.barTurn)?clamp(dynamics.barTurn,-.62,.62):turn*(.40/(1+v*.041));
       spring(handle,barAngle,12,h);
       const bank=clamp(Math.atan(turn*10.2/9.81),-.62,.62)*speedTurn;
-      spring(roll,bank+.025*load-supportSide*.104*planted,8.2,h);
+      // Spirited bike-under-body counter-rock when pedaling hard, climbing, or sprinting!
+      const climbHint=T.MathUtils.smoothstep(grade,.035,.32)*effort;
+      const bikeRock=-.046*load*(.28+.85*(sprinting?1:0)+.52*climbHint);
+      spring(roll,bank+bikeRock-supportSide*.104*planted,8.8,h);
       spring(tailTurn,turn*speedTurn*1.35+clamp(roll.rate*1.65,-.65,.65),3.4,h);
       spring(bodyLoad,clamp(accel*.08+grade*.6,-.37,.36),5.4,h);
       const braking=dynamics.braking===undefined?clamp((-accel-1.55)/5,0,1):Number(!!dynamics.braking);
@@ -1223,6 +1347,7 @@
         leg.knee.copy(knee);leg.animateCloth(leg.hip,leg.knee,ankle);
       }
       cloth(fabricClock/2.1,shoulderAir.value,tailTurn.value,hemAir.value,sideAir.value,gust,capeDrag.value,roadPitch,planted,airTuck.value,h,v);
+      updateHatRibbons(fabricClock/2.1,v,tailTurn.value,gust);
       updateShadow(time || 0,dynamics);
       motion.cadenceRPM=h>0?(previousPhase-phase)*60/(h*tau):0;
       motion.coasting=coasting;motion.crankAngle=phase;motion.wheelAngle=spin;

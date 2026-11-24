@@ -88,19 +88,21 @@ globalThis.RideMeadowTufts=function(T,scene,rider,time,fields,glsl,rand){
         float tufts=noise2(uv*1.63),bank=noise2(uv*.68+4.);
         float wind=windfront(p,uTime);
         vec2 breeze=bendingWind(p,uTime,.44,.47,wind);
-        vec4 mark=wheelTrace(p);float crush=smoothstep(.06,.81,mark.z);
+        vec4 mark=wheelTrace(p);
+        float part=smoothstep(.05,.44,mark.z),rut=smoothstep(.46,.88,mark.z);
         float height=h*(.19+.27*tufts+.20*bank)*(.94-.13*wind)*distant;
-        vec2 shift=h*.13*mix(breeze,mark.xy*2.,crush);
+        vec2 shift=h*.15*mix(breeze,mark.xy*(1.55+.65*rut),part);
         vec2 top=p+shift;
-        height*=1.-.977*crush;
+        // Keep bent stalks visible in the track instead of collapsing to bald ground!
+        height*=1.-.26*part-.52*rut;
         // Folded crowns have a lit cheek and a shaded hollow. The broad
         // hillside retains the same light response as the underlying pasture.
-        float sun=.32+.24*light+.37*(face-.5)+.075*(bank-.5)+.062*(wind-.36);
+        float sun=.32+.24*light+.37*(face-.5)+.075*(bank-.5)+.062*(wind-.36)+part*(1.-rut)*.14;
         vec3 color=meadowReflectance(sun,.40+.19*light,grown);
         vTone=vec4(seasonalPigment(color,worldBiomes(p),p),grown);
         vWorld=vec3(top.x,height,top.y);
-        vCoord=vec4(uv/${tileMetres.toFixed(2)},distant*smoothstep(.015,.081,h),crush);
-        gl_Position=projectionMatrix*viewMatrix*vec4(top.x,soil+dot(shift,slope)+height-.026-.043*crush,top.y,1.);
+        vCoord=vec4(uv/${tileMetres.toFixed(2)},distant*smoothstep(.015,.081,h),rut);
+        gl_Position=projectionMatrix*viewMatrix*vec4(top.x,soil+dot(shift,slope)+height-.024-.018*rut,top.y,1.);
       }`,fragmentShader:`
       uniform vec2 uRider;uniform sampler2D uCanopy;
       ${glsl.pressure}${glsl.shadow}${glsl.display}
@@ -110,10 +112,12 @@ globalThis.RideMeadowTufts=function(T,scene,rider,time,fields,glsl,rand){
         vec4 slices=texture2D(uCanopy,vCoord.xy);
         float thickness=dot(slices,vec4(.18,.26,.31,.25));
         vec3 c=vTone.rgb+vec3(.153,.133,.058)*(thickness-.46);
-        float press=smoothstep(.08,.79,wheelTrace(vWorld.xz).z);
-        c=mix(c,c*vec3(.71,.78,.66),press);
+        float rawMark=wheelTrace(vWorld.xz).z;
+        float press=smoothstep(.48,.88,rawMark),shoulder=smoothstep(.08,.48,rawMark)*(1.-press);
+        c=mix(c,c*vec3(.82,.90,.76),press*.65);
+        c+=vec3(.06,.08,.025)*shoulder;
         c*=grassShadowMultiplier(vWorld.xz,vWorld.y);
-        float cover=clamp(.37+.49*thickness,0.,1.)*vCoord.z*(1.-.82*press);
+        float cover=clamp(.37+.49*thickness,0.,1.)*vCoord.z*(1.-.42*press);
         gl_FragColor=vec4(toLinear(c),cover);
         #include <colorspace_fragment>
       }`});
@@ -188,30 +192,37 @@ globalThis.RideMeadowTufts=function(T,scene,rider,time,fields,glsl,rand){
         if(h<.016){gl_Position=vec4(2.,2.,2.,1.);return;}
         float t=aForm.x;vec2 dir=vec2(cos(phase),sin(phase)),across=vec2(-dir.y,dir.x);
         float wave=windfront(cell,uTime);
-        vec4 pressed=wheelTrace(p);float crush=smoothstep(.06,.78,pressed.z);
+        vec4 pressed=wheelTrace(p);
+        float part=smoothstep(.04,.44,pressed.z),rut=smoothstep(.48,.88,pressed.z);
         vec2 wind=bendingWind(p,uTime,t,aShade.y,wave);
-        // Tilt at emergence, increasingly soft bend near the tip.
+        // Tilt at emergence, increasingly soft bend near the tip; part cleanly around bicycle wheels!
         vec2 lay=normalize(dir+uWeatherWind*(.38+.46*wave));
         vec2 curve=dir*(.16*t)+lay*aForm.w*(1.02*t*t)+across*aShade.x*t*t;
-        vec2 reach=h*mix(curve+wind*(.58*t*t),pressed.xy*(.22*t+1.05*t*t),crush)*mix(.55,1.,fade);
+        vec2 partPush=pressed.xy*(.34*t+1.28*t*t)*(1.+.35*rut);
+        vec2 reach=h*mix(curve+wind*(.62*t*t),partPush,clamp(part*.82+rut*.45,0.,1.))*mix(.55,1.,fade);
         float twist=(aShade.y-.5)*1.55*t+.33*sin(t*2.3+aSeed.z*6.28);
         vec2 section=across*cos(twist)+dir*sin(twist);
         vec2 top=p+reach+section*aForm.y;
-        float droop=.24+.16*aShade.y+.12*wave;
-        float y=h*(t-droop*t*t*t*(.51+.63*aForm.w))*(1.-.10*wave)*fade*(1.-.966*crush);
+        float droop=.23+.15*aShade.y+.12*wave;
+        // Leave 3D bent stalks visible inside the narrow rut (~20% arched height) instead of bald ground!
+        float standKeep=(1.-.22*part)*(1.-.68*rut);
+        float y=h*(t-droop*t*t*t*(.50+.62*aForm.w))*(1.-.10*wave)*fade*standKeep;
         float form=.18*dot(dir,vec2(.64,.77))+.095*aShade.z*(.36+.64*t);
-        float glint=smoothstep(.50,.92,wave)*t*.26;
-        float sunlight=.08+.22*light+.62*smoothstep(.08,.86,t)+form+.19*(wave-.38)+.11*(aShade.y-.5)+glint;
+        float glint=smoothstep(.46,.90,wave)*t*(.32+.12*t);
+        vec2 viewPlanar=normalize(top-cameraPosition.xz+vec2(.0001));
+        float backlit=pow(max(0.,dot(viewPlanar,vec2(.698,.716))),2.0)*t*t*.22;
+        float shoulderSheen=part*(1.-rut)*t*.20;
+        float sunlight=.09+.22*light+.62*smoothstep(.07,.85,t)+form+.20*(wave-.38)+.11*(aShade.y-.5)+glint+backlit+shoulderSheen;
         // Narrow distant ribbons share the value of the mass behind them.
-        // Subpixel roots then resolve into a meadow instead of black pins.
         float resolved=1.-smoothstep(8.,38.,dist);
         sunlight=mix(.42+.18*light+.14*t,sunlight,.22+.78*resolved);
         vec3 c=meadowReflectance(sunlight,aShade.y,grown);
-        // Subtle frost dusting on sparse alpine blades near the snowline.
+        // Delicate warm sun-kissed wheat/seed tips on tall mature blades + alpine frost near snowline
+        float goldenTip=smoothstep(.80,.98,aSeed.z)*smoothstep(.62,.98,t)*(1.-snow);
+        c=mix(c,vec3(.88,.86,.44),goldenTip*.42);
         c=mix(c,vec3(.82,.88,.94),smoothstep(.05,.55,snow)*.55*t);
-        vColour=foliageShade(c,top,crush,worldBiomes(cell));vWorld=vec3(top.x,y,top.y);
-        // Roots and collapsed tips follow the very same slope as the wheels.
-        gl_Position=projectionMatrix*viewMatrix*vec4(top.x,mix(soil,terrainHeight(top),crush)+y-.017,top.y,1.);
+        vColour=foliageShade(c,top,rut*.75,worldBiomes(cell));vWorld=vec3(top.x,y,top.y);
+        gl_Position=projectionMatrix*viewMatrix*vec4(top.x,mix(soil,terrainHeight(top),part*.65+rut*.35)+y-.015,top.y,1.);
       }`,fragmentShader:`uniform vec2 uRider;varying vec3 vColour,vWorld;${glsl.shadow}${glsl.display}
       void main(){vec3 c=vColour*grassShadowMultiplier(vWorld.xz,vWorld.y);gl_FragColor=vec4(toLinear(c),1.);
         #include <colorspace_fragment>

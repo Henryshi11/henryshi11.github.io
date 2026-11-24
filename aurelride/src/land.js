@@ -125,9 +125,9 @@
       float cover=smoothstep(.005,.10,max(plants.x,plants.y));
       if(cover<=0.)return 1.;
       vec2 line=rider-cameraPosition.xz;float boom=max(.01,length(line));line/=boom;
-      float ahead=clamp(dot(delta,line),0.,min(2.8,boom*.69));
-      float gap=length(delta-line*ahead),margin=mix(1.38,.53,smoothstep(.12,2.8,ahead));
-      return 1.-cover*(1.-smoothstep(.11,margin,gap));
+      float ahead=clamp(dot(delta,line),0.,min(2.4,boom*.65));
+      float gap=length(delta-line*ahead),margin=mix(.82,.34,smoothstep(.12,2.4,ahead));
+      return 1.-cover*.78*(1.-smoothstep(.08,margin,gap));
     }
     vec3 treeLight(vec2 p){return mix(vec3(1.),vec3(.70,.76,.83),treeShade(p));}
     float wheelSight(vec2 point,vec2 axle) {
@@ -206,7 +206,7 @@
       vec3 marsh=vec3(value*.62,value*1.08,value*.72)+vec3(.005,.034,.034);
       vec3 straw=vec3(value*1.10,value*1.12,value*.72)+vec3(.036,.046,.018);
       vec3 foliage=mix(mix(c,marsh,.81*zone.z),straw,.46*zone.w);
-      foliage*=mix(vec3(1.),vec3(.24,.38,.54),worldSunShadow(p))*treeLight(p);
+      foliage*=mix(vec3(1.),vec3(.30,.44,.60),worldSunShadow(p))*treeLight(p);
       return foliage*mix(vec3(1.),vec3(.86,.90,.94),uWeatherWet);
     }
     float riverGrass(vec2 p){
@@ -233,7 +233,8 @@
       return clamp(occlusion*uMaskStrength*1.12,0.,1.);
     }
     vec3 grassShadowMultiplier(vec2 p,float heightAboveSoil){
-      return mix(vec3(1.),vec3(.085,.175,.225),cyclistOcclusion(p,heightAboveSoil));
+      // Calibrated in pre-toLinear sRGB (~Linear 0.155, 0.258, 0.40) so grass & riverbed shadows stay lush cool cobalt-emerald, never black!
+      return mix(vec3(1.),vec3(.43,.54,.66),cyclistOcclusion(p,heightAboveSoil));
     }
   `;
   function randomSequence(seed) {
@@ -408,24 +409,25 @@
     function sweep(a,b,wheelNow,speed,seconds){
       const dx=b.x-a.x,dz=b.y-a.y,run=Math.hypot(dx,dz);
       const local=root.RideWildfields?.sample(b.x,b.y),grass=local?.grass||0,lavender=local?.lavender||0;
-      const radius=.88+.26*grass+.14*lavender,life=recovery+10*grass+5*lavender;
+      const radius=.44+.15*grass+.09*lavender,life=recovery+10*grass+5*lavender;
       const denom=dx*dx+dz*dz;
       const tx=run>.012?dx/run:wheelNow.x,tz=run>.012?dz/run:wheelNow.y;
-      const impulse=.96+.04*smooth(0,12,Math.abs(speed));
+      const impulse=.95+.05*smooth(0,12,Math.abs(speed));
       for(let z=Math.floor((Math.min(a.y,b.y)-radius)/cell);z<=Math.floor((Math.max(a.y,b.y)+radius)/cell);z++){
         for(let x=Math.floor((Math.min(a.x,b.x)-radius)/cell);x<=Math.floor((Math.max(a.x,b.x)+radius)/cell);x++){
           const px=(x+.5)*cell-a.x,pz=(z+.5)*cell-a.y;
           const f=clamp((px*dx+pz*dz)/Math.max(.000001,denom),0,1);
           const lx=px-f*dx,lz=pz-f*dz,gap=Math.hypot(lx,lz);
           if(gap>=radius)continue;
-          // Dual-width profile: lush wide parted grass swath (0..0.78) + razor-thin true tire centerline (0.78..0.995)!
-          const wide=.78*(1-smooth(.14,radius,gap));
-          const narrow=.215*(1-smooth(.02,.115,gap));
-          const touch=Math.min(.995,impulse*(wide+narrow));
-          const side=clamp((lx*tz-lz*tx)/.18,-1,1);
-          const bx=tx*.52+tz*.90*side,bz=tz*.52-tx*.90*side;
-          const fringe=1-smooth(.03,radius*.48,Math.abs(gap-radius*.54));
-          const lip=fringe*(.72+.34*side*(.80*tz+.60*tx));
+          // Physical bicycle wake: soft parted outer grass shoulder (0..0.38) + narrow ~20cm tire rut (0.45..0.98)
+          const wide=.38*(1-smooth(.09,radius,gap));
+          const narrow=.60*(1-smooth(.02,.145,gap));
+          const touch=Math.min(.99,impulse*(wide+narrow));
+          const signedLat=lx*tz-lz*tx;
+          const side= signedLat>=0 ? clamp(.28+signedLat/.16,.28,1) : clamp(-.28+signedLat/.16,-1,-.28);
+          const bx=tx*.46+tz*.92*side,bz=tz*.46-tx*.92*side;
+          const fringe=1-smooth(.025,radius*.42,Math.abs(gap-.18));
+          const lip=fringe*(.68+.32*side*(.80*tz+.60*tx));
           const key=id(x,z),chunk=bucketKey(x,z);
           let bucket=buckets.get(chunk);
           if(!bucket){bucket={cells:new Map(),expires:0};buckets.set(chunk,bucket);}
@@ -537,11 +539,15 @@
       if(dot(gap,gap)>10. || max(uAxleGround.x,uAxleGround.y)<.5)return vec4(bend,past.ba);
       vec2 a=tireSegment(p,uLastStamped[0],uAxle[0]),b=tireSegment(p,uLastStamped[1],uAxle[1]);
       vec2 side=dot(a,a)+64.*(1.-uAxleGround.x)<dot(b,b)+64.*(1.-uAxleGround.y)?a:b;
-      float liveWide=.78*(1.-smoothstep(.14,.68,length(side)));
-      float liveNarrow=.215*(1.-smoothstep(.02,.115,length(side)));
-      float live=min(.995,(liveWide+liveNarrow)*max(uAxleGround.x,uAxleGround.y));
-      vec2 toward=uAxle[0]-uAxle[1];
-      vec2 fresh=(toward/max(.1,length(toward))*.68+side/max(.12,length(side))*.47)*live;
+      vec2 toward=normalize(uAxle[0]-uAxle[1]+vec2(.0001));
+      float aheadFront=max(0.,dot(p-uAxle[0],toward)-.16);
+      float effDist=length(side)+aheadFront*2.4;
+      float liveWide=.38*(1.-smoothstep(.09,.42,effDist));
+      float liveNarrow=.60*(1.-smoothstep(.02,.145,effDist));
+      float live=min(.99,(liveWide+liveNarrow)*max(uAxleGround.x,uAxleGround.y));
+      vec2 latAxis=vec2(-toward.y,toward.x);
+      float sgn=dot(side,latAxis)>=0.?1.:-1.;
+      vec2 fresh=(toward*.48+latAxis*sgn*.88)*live;
       return vec4(mix(bend,fresh,smoothstep(.0,.14,live-past.b)),max(past.b,live),past.a);
     }
     vec3 wheelImprint(vec2 p){return wheelTrace(p).xyz;}
@@ -689,7 +695,7 @@
             float silverWave=smoothstep(.45,.90,wave)*(.45+.55*noise2(p*.09+vec2(1.5,2.8)));
             base=mix(base,vec3(.88,.86,.72),vZone.z*silverWave*.32);
           }
-          vec3 daylight=mix(vec3(1.),vec3(.24,.38,.54),worldSunShadow(p))*treeLight(p);
+          vec3 daylight=mix(vec3(1.),vec3(.30,.44,.60),worldSunShadow(p))*treeLight(p);
           daylight*=mix(vec3(1.),vec3(.85,.89,.92),uWeatherWet);
           base*=daylight;
           // High-altitude alpine snow: baked 2-layer wind-carved sastrugi relief normals,
@@ -741,50 +747,54 @@
           vec4 impression=wheelTrace(p);
           if(impression.z>.005||impression.w>.005){
             float available=(1.-path.w)*(1.-.83*path.x);
-            // Wide, lush parted swath for regular green meadow & tall flowerbeds
-            float core=smoothstep(.10,.74,impression.z);
+            // Crisp narrow ~20cm physical tire groove + fibrous parted grass stalks (never a wide bald smear!)
+            float core=smoothstep(.42,.88,impression.z);
+            float shoulder=smoothstep(.08,.48,impression.z)*(1.-core);
             vec2 along=normalize(impression.xy+vec2(.00001));
             vec2 across=vec2(-along.y,along.x);
-            vec2 layUV=vec2(dot(p,across),dot(p,along))*vec2(.58,.31);
+            float coordA=dot(p,across),coordL=dot(p,along);
+            vec2 layUV=vec2(coordA,coordL)*vec2(.85,.34);
             vec4 bent=texture2D(uBladePaint,layUV);
-            float polish=.095*(bent.a-.51)+.048*(bent.r-.5);
+            // Anisotropic laid-stem fibers along the wheel roll so close-up tracks read as bent stalks, not flat paint
+            float stalkFiber=noise2(vec2(coordA*19.,coordL*2.8))*.65+noise2(vec2(coordA*38.,coordL*5.5))*.35;
+            float polish=.11*(bent.a-.48)+.08*(stalkFiber-.48);
             vec2 laidNormal=(bent.r-.5)*across+(bent.g-.5)*along;
-            // 1. Default lush meadow track: deep emerald-olive parted core + golden-green sunlit shoulder
-            vec3 pressed=meadowReflectance(.12+.16*sun+.44*dot(laidNormal,vec2(.62,.78))+.19*tuftLight,bent.b,grown)*vec3(.75,.85,.70)+vec3(polish);
-            vec3 edgeGlow=vec3(.115,.130,.052);
+            // 1. Default lush meadow track: sunlit bent-leaf sheen on parted shoulders + rich emerald-stem narrow groove
+            vec3 pressed=meadowReflectance(.24+.20*sun+.42*dot(laidNormal,vec2(.62,.78))+.18*tuftLight+.14*stalkFiber,bent.b,grown)*vec3(.84,.93,.76)+vec3(polish);
+            vec3 edgeGlow=vec3(.095,.125,.038)*(.65+.70*stalkFiber);
             // 2. Purple Lavender track: deep plum-violet crushed stems + pale lilac scattered petals on edges
             if(wild.g>.05){
-              vec3 lavCore=mix(vec3(.24,.17,.36),vec3(.40,.34,.50),bent.a);
+              vec3 lavCore=mix(vec3(.28,.21,.40),vec3(.46,.39,.56),stalkFiber);
               pressed=mix(pressed,lavCore,smoothstep(.05,.45,wild.g));
-              edgeGlow=mix(edgeGlow,vec3(.20,.12,.26),smoothstep(.05,.45,wild.g));
+              edgeGlow=mix(edgeGlow,vec3(.18,.11,.24),smoothstep(.05,.45,wild.g));
             }
-            // 3. Yellow Canola track: dark forest-olive crushed stalks + bright golden-yellow fallen petal rims
+            // 3. Yellow Canola track: forest-olive bent stalks + bright golden-yellow fallen petal rims
             if(wild.b>.05){
-              vec3 canCore=mix(vec3(.21,.34,.13),vec3(.44,.52,.18),bent.a);
+              vec3 canCore=mix(vec3(.26,.40,.16),vec3(.50,.58,.22),stalkFiber);
               pressed=mix(pressed,canCore,smoothstep(.05,.45,wild.b));
-              edgeGlow=mix(edgeGlow,vec3(.32,.26,.04),smoothstep(.05,.45,wild.b));
+              edgeGlow=mix(edgeGlow,vec3(.28,.23,.04),smoothstep(.05,.45,wild.b));
             }
             // 4. Western Silvergrass Sea track: flattened warm champagne-straw lane + pale silver edges
             if(vZone.z>.12){
-              vec3 silCore=mix(vec3(.48,.46,.28),vec3(.72,.68,.46),bent.a);
+              vec3 silCore=mix(vec3(.52,.50,.31),vec3(.76,.72,.50),stalkFiber);
               pressed=mix(pressed,silCore,smoothstep(.12,.55,vZone.z));
-              edgeGlow=mix(edgeGlow,vec3(.20,.19,.13),smoothstep(.12,.55,vZone.z));
+              edgeGlow=mix(edgeGlow,vec3(.18,.17,.11),smoothstep(.12,.55,vZone.z));
             }
             // 5. Cherry Petal Blanket track: tire sweeps petals aside to reveal cool damp green grass + pink petal ridges on sides!
             if(orchardCov>.08){
               float petW=smoothstep(.08,.48,orchardCov);
-              vec3 dampGrass=mix(vec3(.18,.31,.15),vec3(.30,.44,.22),bent.a);
-              pressed=mix(pressed,dampGrass,petW*.92);
-              edgeGlow=mix(edgeGlow,vec3(.34,.14,.20),petW);
+              vec3 dampGrass=mix(vec3(.22,.36,.18),vec3(.36,.50,.26),stalkFiber);
+              pressed=mix(pressed,dampGrass,petW*.90);
+              edgeGlow=mix(edgeGlow,vec3(.32,.14,.20),petW);
             }
             pressed*=daylight;
-            float vegAmt=available*core*(.94+.05*tufts)*(1.-snow);
+            float vegAmt=available*core*(.78+.14*stalkFiber)*(1.-snow);
             base=mix(base,pressed,vegAmt);
-            base+=edgeGlow*daylight*available*impression.w*(1.-.62*core)*(1.-snow);
+            base+=edgeGlow*daylight*available*(impression.w*.75+shoulder*.55)*(1.-.55*core)*(1.-snow);
             // 6. Eastern Snowfield track: RAZOR-THIN true single bicycle tire width (~13cm) cool cobalt groove + crisp thin snow rim!
             if(snow>.01){
-              float narrowRut=smoothstep(.825,.935,impression.z);
-              float narrowRim=smoothstep(.73,.83,impression.z)*(1.-narrowRut);
+              float narrowRut=smoothstep(.76,.92,impression.z);
+              float narrowRim=smoothstep(.58,.76,impression.z)*(1.-narrowRut);
               vec3 snowRutCol=mix(vec3(.42,.62,.87),vec3(.58,.75,.94),bent.a)*daylight;
               base=mix(base,snowRutCol,available*narrowRut*snow*.95);
               base+=vec3(.14,.16,.19)*daylight*available*narrowRim*snow;
@@ -1001,7 +1011,7 @@
             colour=mix(silverPlume,reed,marsh);
           }
           colour*=(.93+.07*aForm.y+.10*w*t)*(1.-.46*crush);
-          colour*=mix(vec3(1.),vec3(.24,.38,.54),worldSunShadow(p))*treeLight(p);
+          colour*=mix(vec3(1.),vec3(.30,.44,.60),worldSunShadow(p))*treeLight(p);
           colour*=grassShadowMultiplier(p,h);
           vColour=colour;gl_Position=projectionMatrix*viewMatrix*vec4(p.x,terrainHeight(center)-.04+h,p.y,1.);
         }`,fragmentShader:`varying vec3 vColour;${displayColor}
@@ -1039,6 +1049,7 @@
     g.setAttribute('aBud',new T.Float32BufferAttribute(buds,4));
     const pixels={value:720};
     const mat=new T.ShaderMaterial({transparent:true,depthWrite:false,
+      blending:T.CustomBlending,blendSrc:T.SrcAlphaFactor,blendDst:T.OneMinusSrcAlphaFactor,blendSrcAlpha:T.ZeroFactor,blendDstAlpha:T.OneFactor,
       uniforms:{uRider:rider,uTime:time,uPixels:pixels,...track,...shadow},
       vertexShader:`attribute vec4 aBud;uniform vec2 uRider;uniform float uTime,uPixels;${wheelPressure}
         varying vec4 vBloom;varying float vTwist;

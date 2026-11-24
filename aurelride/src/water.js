@@ -108,7 +108,7 @@
       vertexShader:`attribute vec3 aStone;varying vec3 vInk;${weather.glsl}
         void main(){float shade=rideCloudShade(position.xz);vInk=aStone*mix(vec3(1.),vec3(.66,.72,.82),shade);
           gl_Position=projectionMatrix*viewMatrix*vec4(position,1.);}`,
-      fragmentShader:`varying vec3 vInk;void main(){gl_FragColor=vec4(pow(vInk,vec3(2.2)),1.);
+      fragmentShader:`varying vec3 vInk;void main(){gl_FragColor=vec4(pow(max(vInk,vec3(.0001)),vec3(2.2)),1.);
         #include <colorspace_fragment>
       }`});
     for(const fordZ of [-645,335]){
@@ -144,6 +144,8 @@
     if(!world||!weather)return;
     const wake=makeWheelWake(T,scene,world);
     const material=new T.ShaderMaterial({transparent:true,depthWrite:false,side:T.DoubleSide,
+      blending:T.CustomBlending,blendSrc:T.SrcAlphaFactor,blendDst:T.OneMinusSrcAlphaFactor,
+      blendSrcAlpha:T.ZeroFactor,blendDstAlpha:T.OneFactor,
       uniforms:{...weather.uniforms(T),...wake.uniforms,uWaterGrain:{value:flowTexture(T)}},
       vertexShader:`attribute vec4 aRiver;attribute float aAcross;varying float vAcross;varying vec4 vRiver;varying vec3 vPos,vSky;
         ${weather.glsl}
@@ -185,7 +187,7 @@
             }
           }
           vec3 n=normalize(vec3(-slope.x,1.,-slope.y)),v=normalize(cameraPosition-vPos);
-          float incidence=clamp(dot(n,v),0.,1.);float fres=.06+.76*pow(1.-incidence,3.3);
+          float incidence=clamp(dot(n,v),0.,1.);float fres=.06+.76*pow(max(1.-incidence,.0001),3.3);
           vec3 shallow=mix(vec3(.29,.61,.51),vec3(.38,.77,.65),wash);
           vec3 pool=mix(vec3(.055,.449,.456),vec3(.09,.585,.545),wash);
           vec3 body=mix(shallow,pool,smoothstep(.15,1.85,depth));
@@ -213,8 +215,8 @@
           float caustic=(1.-smoothstep(.019,.058,abs(waterA.g-.51)))*crest*(1.-smoothstep(.28,1.24,depth));
           surface+=vec3(.092,.117,.060)*caustic*(1.-shade);
           surface=mix(surface,vec3(.84,.93,.90),wakeWash*.39);
-          vec3 sun=normalize(vec3(.45,.75,.50));float halfDot=max(0.,dot(n,normalize(sun+v)));
-          float glitter=pow(halfDot,135.)*(.3+.7*grain)*(1.-.92*shade);
+          vec3 sun=normalize(vec3(.55,.62,.56));float halfDot=max(.0001,dot(n,normalize(sun+v)));
+          float glitter=pow(halfDot,120.)*(.3+.7*grain)*(1.-.92*shade);
           surface+=vec3(.80,.71,.45)*glitter+vec3(.048,.062,.05)*crest*grain*(1.-cloud);
           float atmospheric=smoothstep(190.,1280.,distanceCam)*(.31+.31*uWeatherHaze);
           surface=mix(surface,vec3(.64,.73,.79),atmospheric);
